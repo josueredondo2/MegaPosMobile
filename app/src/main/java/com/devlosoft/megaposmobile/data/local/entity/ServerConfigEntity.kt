@@ -1,0 +1,14 @@
+package com.devlosoft.megaposmobile.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "server_config")
+data class ServerConfigEntity(
+    @PrimaryKey
+    val id: Int = 1,
+    val serverUrl: String,
+    val serverName: String,
+    val isActive: Boolean = true,
+    val lastConnected: Long? = null
+)
