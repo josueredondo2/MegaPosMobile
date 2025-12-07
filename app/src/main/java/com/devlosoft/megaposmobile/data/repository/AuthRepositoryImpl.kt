@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.data.repository
 
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.util.JwtDecoder
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.AuthApi
 import com.devlosoft.megaposmobile.data.remote.dto.ApiErrorDto
@@ -32,9 +33,15 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 response.body()?.let { loginResponse ->
                     val token = loginResponse.toDomain()
+
+                    // Decode JWT to extract user information
+                    val jwtPayload = JwtDecoder.decode(token.accessToken)
+
                     sessionManager.saveSession(
                         accessToken = token.accessToken,
-                        userCode = code
+                        userCode = jwtPayload?.userCode ?: code,
+                        userName = jwtPayload?.userName,
+                        sessionId = jwtPayload?.sessionId
                     )
                     emit(Resource.Success(token))
                 } ?: emit(Resource.Error("Respuesta vacía del servidor"))
