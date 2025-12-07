@@ -8,4 +8,7 @@ sealed class Screen(val route: String) {
     data object Customer : Screen("customer/{identification}") {
         fun createRoute(identification: String) = "customer/$identification"
     }
+    data object Process : Screen("process/{processType}") {
+        fun createRoute(processType: String) = "process/$processType"
+    }
 }

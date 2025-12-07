@@ -29,7 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -59,7 +58,8 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToProcess: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -97,62 +97,6 @@ fun HomeScreen(
             dismissButton = {
                 TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissLogoutConfirmDialog) }) {
                     Text("No")
-                }
-            }
-        )
-    }
-
-    // Open Terminal Success Dialog
-    if (state.showOpenTerminalSuccessDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissOpenTerminalSuccess) },
-            title = { Text(text = "Apertura de Terminal") },
-            text = { Text(text = state.openTerminalMessage) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissOpenTerminalSuccess) }) {
-                    Text("Aceptar")
-                }
-            }
-        )
-    }
-
-    // Open Terminal Error Dialog
-    state.openTerminalError?.let { errorMessage ->
-        AlertDialog(
-            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissOpenTerminalError) },
-            title = { Text(text = "Error") },
-            text = { Text(text = errorMessage) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissOpenTerminalError) }) {
-                    Text("Aceptar")
-                }
-            }
-        )
-    }
-
-    // Close Terminal Success Dialog
-    if (state.showCloseTerminalSuccessDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseTerminalSuccess) },
-            title = { Text(text = "Cierre de Terminal") },
-            text = { Text(text = state.closeTerminalMessage) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseTerminalSuccess) }) {
-                    Text("Aceptar")
-                }
-            }
-        )
-    }
-
-    // Close Terminal Error Dialog
-    state.closeTerminalError?.let { errorMessage ->
-        AlertDialog(
-            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseTerminalError) },
-            title = { Text(text = "Error") },
-            text = { Text(text = errorMessage) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseTerminalError) }) {
-                    Text("Aceptar")
                 }
             }
         )
@@ -268,7 +212,7 @@ fun HomeScreen(
                         icon = Icons.Default.PhoneAndroid,
                         title = "Aperturar Terminal",
                         description = "Realiza la apertura para el dia.",
-                        onClick = { viewModel.onEvent(HomeEvent.OpenTerminal) }
+                        onClick = { onNavigateToProcess("openTerminal") }
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
@@ -277,7 +221,7 @@ fun HomeScreen(
                         icon = Icons.Default.Lock,
                         title = "Cierre Terminal",
                         description = "Realiza el cierre para el dia incluyendo cierre del datafono",
-                        onClick = { viewModel.onEvent(HomeEvent.CloseTerminal) }
+                        onClick = { onNavigateToProcess("closeTerminal") }
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
@@ -301,18 +245,6 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
                 }
             }
-            }
-
-            // Loading overlay
-            if (state.isOpeningTerminal || state.isClosingTerminal) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MegaSuperWhite)
-                }
             }
         }
     }
