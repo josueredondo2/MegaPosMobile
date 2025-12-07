@@ -1,8 +1,10 @@
 package com.devlosoft.megaposmobile.di
 
 import com.devlosoft.megaposmobile.data.repository.AuthRepositoryImpl
+import com.devlosoft.megaposmobile.data.repository.BillingRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.CashierStationRepositoryImpl
 import com.devlosoft.megaposmobile.domain.repository.AuthRepository
+import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.repository.CashierStationRepository
 import dagger.Binds
 import dagger.Module
@@ -25,4 +27,10 @@ abstract class RepositoryModule {
     abstract fun bindCashierStationRepository(
         cashierStationRepositoryImpl: CashierStationRepositoryImpl
     ): CashierStationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBillingRepository(
+        billingRepositoryImpl: BillingRepositoryImpl
+    ): BillingRepository
 }

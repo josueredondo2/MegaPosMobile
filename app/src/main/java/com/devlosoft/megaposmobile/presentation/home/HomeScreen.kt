@@ -59,7 +59,8 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onLogout: () -> Unit,
-    onNavigateToProcess: (String) -> Unit = {}
+    onNavigateToProcess: (String) -> Unit = {},
+    onNavigateToBilling: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -231,7 +232,7 @@ fun HomeScreen(
                         title = "Facturación",
                         description = "Ingresa para facturar",
                         enabled = state.isStationOpen,
-                        onClick = { viewModel.onEvent(HomeEvent.Billing) }
+                        onClick = { onNavigateToBilling() }
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))

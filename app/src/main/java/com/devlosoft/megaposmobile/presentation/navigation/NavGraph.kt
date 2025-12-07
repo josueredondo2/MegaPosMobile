@@ -6,6 +6,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.devlosoft.megaposmobile.presentation.billing.BillingScreen
+import com.devlosoft.megaposmobile.presentation.billing.BillingViewModel
+import com.devlosoft.megaposmobile.presentation.billing.TransactionScreen
 import com.devlosoft.megaposmobile.presentation.configuration.ConfigurationScreen
 import com.devlosoft.megaposmobile.presentation.home.HomeScreen
 import com.devlosoft.megaposmobile.presentation.login.LoginScreen
@@ -50,6 +54,9 @@ fun NavGraph(
                 },
                 onNavigateToProcess = { processType ->
                     navController.navigate(Screen.Process.createRoute(processType))
+                },
+                onNavigateToBilling = {
+                    navController.navigate(Screen.Billing.route)
                 }
             )
         }
@@ -63,6 +70,39 @@ fun NavGraph(
             val processType = backStackEntry.arguments?.getString("processType") ?: ""
             ProcessScreen(
                 processType = processType,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // Billing flow - share ViewModel between screens
+        composable(route = Screen.Billing.route) { backStackEntry ->
+            val parentEntry = navController.getBackStackEntry(Screen.Billing.route)
+            val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
+
+            BillingScreen(
+                viewModel = billingViewModel,
+                onNavigateToTransaction = {
+                    navController.navigate(Screen.TransactionDetail.route)
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(route = Screen.TransactionDetail.route) {
+            // Get the ViewModel from the billing backstack entry to share state
+            val billingEntry = navController.getBackStackEntry(Screen.Billing.route)
+            val billingViewModel: BillingViewModel = hiltViewModel(billingEntry)
+
+            TransactionScreen(
+                viewModel = billingViewModel,
+                onFinalize = {
+                    // TODO: Implement finalize transaction flow
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
+                },
                 onBack = {
                     navController.popBackStack()
                 }

@@ -5,6 +5,8 @@ import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.AuthApi
 import com.devlosoft.megaposmobile.data.remote.api.CashierStationApi
+import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
+import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.interceptor.AuthInterceptor
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -85,5 +87,17 @@ object NetworkModule {
     @Singleton
     fun provideCashierStationApi(retrofit: Retrofit): CashierStationApi {
         return retrofit.create(CashierStationApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideCustomerApi(retrofit: Retrofit): CustomerApi {
+        return retrofit.create(CustomerApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTransactionApi(retrofit: Retrofit): TransactionApi {
+        return retrofit.create(TransactionApi::class.java)
     }
 }
