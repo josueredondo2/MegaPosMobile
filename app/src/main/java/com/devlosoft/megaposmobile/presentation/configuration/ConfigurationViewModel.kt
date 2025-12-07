@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.presentation.configuration
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.devlosoft.megaposmobile.core.util.DeviceIdentifier
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ConfigurationViewModel @Inject constructor(
-    private val serverConfigDao: ServerConfigDao
+    private val serverConfigDao: ServerConfigDao,
+    private val deviceIdentifier: DeviceIdentifier
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConfigurationState())
@@ -22,6 +24,12 @@ class ConfigurationViewModel @Inject constructor(
 
     init {
         loadConfiguration()
+        loadAndroidId()
+    }
+
+    private fun loadAndroidId() {
+        val androidId = deviceIdentifier.getDeviceId()
+        _state.update { it.copy(androidId = androidId) }
     }
 
     private fun loadConfiguration() {

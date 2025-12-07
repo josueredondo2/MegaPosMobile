@@ -11,4 +11,8 @@ sealed class HomeEvent {
     data object ShowLogoutConfirmDialog : HomeEvent()
     data object DismissLogoutConfirmDialog : HomeEvent()
     data object ConfirmLogout : HomeEvent()
+    data object DismissOpenTerminalError : HomeEvent()
+    data object DismissOpenTerminalSuccess : HomeEvent()
+    data object DismissCloseTerminalError : HomeEvent()
+    data object DismissCloseTerminalSuccess : HomeEvent()
 }

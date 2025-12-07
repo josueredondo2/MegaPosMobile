@@ -27,6 +27,7 @@ class SessionManager @Inject constructor(
         private val KEY_USER_CODE = stringPreferencesKey(Constants.KEY_USER_CODE)
         private val KEY_USER_NAME = stringPreferencesKey(Constants.KEY_USER_NAME)
         private val KEY_SESSION_ID = stringPreferencesKey(Constants.KEY_SESSION_ID)
+        private val KEY_STATION_ID = stringPreferencesKey(Constants.KEY_STATION_ID)
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey(Constants.KEY_IS_LOGGED_IN)
         private val KEY_SERVER_URL = stringPreferencesKey(Constants.KEY_SERVER_URL)
     }
@@ -52,7 +53,15 @@ class SessionManager @Inject constructor(
             preferences.remove(KEY_USER_CODE)
             preferences.remove(KEY_USER_NAME)
             preferences.remove(KEY_SESSION_ID)
+            preferences.remove(KEY_STATION_ID)
             preferences[KEY_IS_LOGGED_IN] = false
+        }
+    }
+
+    suspend fun saveStationInfo(sessionId: String, stationId: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_SESSION_ID] = sessionId
+            preferences[KEY_STATION_ID] = stationId
         }
     }
 
@@ -63,6 +72,8 @@ class SessionManager @Inject constructor(
     fun getUserName(): Flow<String?> = dataStore.data.map { it[KEY_USER_NAME] }
 
     fun getSessionId(): Flow<String?> = dataStore.data.map { it[KEY_SESSION_ID] }
+
+    fun getStationId(): Flow<String?> = dataStore.data.map { it[KEY_STATION_ID] }
 
     fun isLoggedIn(): Flow<Boolean> = dataStore.data.map { it[KEY_IS_LOGGED_IN] ?: false }
 

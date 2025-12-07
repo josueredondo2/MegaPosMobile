@@ -2,10 +2,13 @@ package com.devlosoft.megaposmobile.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
+import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +24,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val logoutUseCase: LogoutUseCase,
+    private val openTerminalUseCase: OpenTerminalUseCase,
+    private val closeTerminalUseCase: CloseTerminalUseCase,
     private val sessionManager: SessionManager,
     private val serverConfigDao: ServerConfigDao,
     private val stationStatus: StationStatus
@@ -70,10 +75,10 @@ class HomeViewModel @Inject constructor(
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.OpenTerminal -> {
-                showTodoDialog("Aperturar Terminal")
+                openTerminal()
             }
             is HomeEvent.CloseTerminal -> {
-                showTodoDialog("Cierre Terminal")
+                closeTerminal()
             }
             is HomeEvent.Billing -> {
                 showTodoDialog("Facturación")
@@ -99,6 +104,107 @@ class HomeViewModel @Inject constructor(
             is HomeEvent.ConfirmLogout -> {
                 _state.update { it.copy(showLogoutConfirmDialog = false) }
                 logout()
+            }
+            is HomeEvent.DismissOpenTerminalError -> {
+                _state.update { it.copy(openTerminalError = null) }
+            }
+            is HomeEvent.DismissOpenTerminalSuccess -> {
+                _state.update { it.copy(showOpenTerminalSuccessDialog = false, openTerminalMessage = "") }
+            }
+            is HomeEvent.DismissCloseTerminalError -> {
+                _state.update { it.copy(closeTerminalError = null) }
+            }
+            is HomeEvent.DismissCloseTerminalSuccess -> {
+                _state.update { it.copy(showCloseTerminalSuccessDialog = false, closeTerminalMessage = "") }
+            }
+        }
+    }
+
+    private fun openTerminal() {
+        viewModelScope.launch {
+            openTerminalUseCase().collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update { it.copy(isOpeningTerminal = true, openTerminalError = null) }
+                    }
+                    is Resource.Success -> {
+                        result.data?.let { openStationResult ->
+                            // Save sessionId and stationId to SessionManager
+                            sessionManager.saveStationInfo(
+                                sessionId = openStationResult.sessionId,
+                                stationId = openStationResult.stationId
+                            )
+
+                            // Update global station status
+                            stationStatus.open()
+
+                            val message = if (openStationResult.isNewSession) {
+                                "Terminal aperturada exitosamente"
+                            } else {
+                                "Terminal ya estaba aperturada"
+                            }
+
+                            _state.update {
+                                it.copy(
+                                    isOpeningTerminal = false,
+                                    showOpenTerminalSuccessDialog = true,
+                                    openTerminalMessage = message,
+                                    stationStatus = stationStatus.getDisplayText()
+                                )
+                            }
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isOpeningTerminal = false,
+                                openTerminalError = result.message ?: "Error al aperturar terminal"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun closeTerminal() {
+        viewModelScope.launch {
+            closeTerminalUseCase().collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update { it.copy(isClosingTerminal = true, closeTerminalError = null) }
+                    }
+                    is Resource.Success -> {
+                        result.data?.let { closeStationResult ->
+                            // Update global station status
+                            stationStatus.close()
+
+                            val message = if (closeStationResult.success) {
+                                "Terminal cerrada exitosamente"
+                            } else {
+                                "No se pudo cerrar la terminal"
+                            }
+
+                            _state.update {
+                                it.copy(
+                                    isClosingTerminal = false,
+                                    showCloseTerminalSuccessDialog = closeStationResult.success,
+                                    closeTerminalMessage = message,
+                                    closeTerminalError = if (!closeStationResult.success) message else null,
+                                    stationStatus = stationStatus.getDisplayText()
+                                )
+                            }
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isClosingTerminal = false,
+                                closeTerminalError = result.message ?: "Error al cerrar terminal"
+                            )
+                        }
+                    }
+                }
             }
         }
     }

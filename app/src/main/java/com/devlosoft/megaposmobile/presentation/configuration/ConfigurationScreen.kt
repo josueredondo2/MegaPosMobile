@@ -230,6 +230,33 @@ fun ConfigurationScreen(
                         )
                     )
 
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Android ID Label (Read-only)
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Android ID",
+                            fontSize = dimensions.fontSizeSmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = state.androidId.ifBlank { "Obteniendo..." },
+                            fontSize = dimensions.fontSizeMedium,
+                            color = Color.Black,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = Color(0xFFF5F5F5),
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
                     // Botón Guardar

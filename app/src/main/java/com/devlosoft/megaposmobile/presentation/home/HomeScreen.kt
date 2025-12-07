@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -101,13 +102,70 @@ fun HomeScreen(
         )
     }
 
+    // Open Terminal Success Dialog
+    if (state.showOpenTerminalSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissOpenTerminalSuccess) },
+            title = { Text(text = "Apertura de Terminal") },
+            text = { Text(text = state.openTerminalMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissOpenTerminalSuccess) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // Open Terminal Error Dialog
+    state.openTerminalError?.let { errorMessage ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissOpenTerminalError) },
+            title = { Text(text = "Error") },
+            text = { Text(text = errorMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissOpenTerminalError) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // Close Terminal Success Dialog
+    if (state.showCloseTerminalSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseTerminalSuccess) },
+            title = { Text(text = "Cierre de Terminal") },
+            text = { Text(text = state.closeTerminalMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseTerminalSuccess) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // Close Terminal Error Dialog
+    state.closeTerminalError?.let { errorMessage ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseTerminalError) },
+            title = { Text(text = "Error") },
+            text = { Text(text = errorMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseTerminalError) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
     Scaffold { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color.White)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color.White)
+            ) {
             // Header rojo con logo y botón de usuario
             Box(
                 modifier = Modifier
@@ -241,6 +299,19 @@ fun HomeScreen(
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
+                }
+            }
+            }
+
+            // Loading overlay
+            if (state.isOpeningTerminal || state.isClosingTerminal) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MegaSuperWhite)
                 }
             }
         }

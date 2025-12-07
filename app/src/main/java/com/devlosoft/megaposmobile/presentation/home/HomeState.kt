@@ -9,5 +9,13 @@ data class HomeState(
     val showTodoDialog: Boolean = false,
     val todoDialogTitle: String = "",
     val showUserMenu: Boolean = false,
-    val showLogoutConfirmDialog: Boolean = false
+    val showLogoutConfirmDialog: Boolean = false,
+    val isOpeningTerminal: Boolean = false,
+    val openTerminalError: String? = null,
+    val showOpenTerminalSuccessDialog: Boolean = false,
+    val openTerminalMessage: String = "",
+    val isClosingTerminal: Boolean = false,
+    val closeTerminalError: String? = null,
+    val showCloseTerminalSuccessDialog: Boolean = false,
+    val closeTerminalMessage: String = ""
 )
