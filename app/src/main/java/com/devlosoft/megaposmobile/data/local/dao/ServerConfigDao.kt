@@ -16,6 +16,9 @@ interface ServerConfigDao {
     @Query("SELECT * FROM server_config WHERE isActive = 1 LIMIT 1")
     fun getActiveServerConfig(): Flow<ServerConfigEntity?>
 
+    @Query("SELECT * FROM server_config WHERE isActive = 1 LIMIT 1")
+    suspend fun getActiveServerConfigSync(): ServerConfigEntity?
+
     @Query("SELECT * FROM server_config")
     fun getAllServerConfigs(): Flow<List<ServerConfigEntity>>
 

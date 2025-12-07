@@ -1,26 +1,50 @@
 package com.devlosoft.megaposmobile.data.remote.interceptor
 
-import android.os.Build
+import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
+import java.io.IOException
 import javax.inject.Inject
 
 class AuthInterceptor @Inject constructor(
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val serverConfigDao: ServerConfigDao
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        // Get device hostname (using device model and manufacturer)
-        val hostname = "${Build.MANUFACTURER}_${Build.MODEL}".replace(" ", "_")
+        // Get server config from database (required)
+        val serverConfig = runBlocking {
+            serverConfigDao.getActiveServerConfigSync()
+        } ?: throw IOException("Configuración del servidor no encontrada. Por favor configure la URL y el hostname en Configuración.")
+
+        // Get hostname from database config (required)
+        val hostname = serverConfig.serverName.takeIf { it.isNotBlank() }
+            ?: throw IOException("Hostname no configurado. Por favor configure el hostname en Configuración.")
+
+        // Get base URL from database config (required)
+        val configuredBaseUrl = serverConfig.serverUrl.takeIf { it.isNotBlank() }?.toHttpUrlOrNull()
+            ?: throw IOException("URL del servidor no configurada o inválida. Por favor configure la URL en Configuración.")
+
+        // Build new URL using configured base URL from database
+        val newUrl = originalRequest.url.newBuilder()
+            .scheme(configuredBaseUrl.scheme)
+            .host(configuredBaseUrl.host)
+            .port(configuredBaseUrl.port)
+            .build()
+
+        val newRequest = originalRequest.newBuilder()
+            .url(newUrl)
+            .build()
 
         // Skip auth header for login endpoint
-        if (originalRequest.url.encodedPath.endsWith("login")) {
-            val requestWithHostname = originalRequest.newBuilder()
+        if (newRequest.url.encodedPath.endsWith("login")) {
+            val requestWithHostname = newRequest.newBuilder()
                 .header("x-Hostname", hostname)
                 .build()
             return chain.proceed(requestWithHostname)
@@ -31,12 +55,12 @@ class AuthInterceptor @Inject constructor(
         }
 
         val request = if (!token.isNullOrEmpty()) {
-            originalRequest.newBuilder()
+            newRequest.newBuilder()
                 .header("Authorization", "Bearer $token")
                 .header("x-Hostname", hostname)
                 .build()
         } else {
-            originalRequest.newBuilder()
+            newRequest.newBuilder()
                 .header("x-Hostname", hostname)
                 .build()
         }

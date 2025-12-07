@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.devlosoft.megaposmobile.presentation.configuration.ConfigurationScreen
 import com.devlosoft.megaposmobile.presentation.home.HomeScreen
 import com.devlosoft.megaposmobile.presentation.login.LoginScreen
 
@@ -22,6 +23,17 @@ fun NavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
+                },
+                onNavigateToConfiguration = {
+                    navController.navigate(Screen.Configuration.route)
+                }
+            )
+        }
+
+        composable(route = Screen.Configuration.route) {
+            ConfigurationScreen(
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }

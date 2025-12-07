@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.di
 
 import com.devlosoft.megaposmobile.BuildConfig
+import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.AuthApi
 import com.devlosoft.megaposmobile.data.remote.interceptor.AuthInterceptor
@@ -41,8 +42,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideAuthInterceptor(sessionManager: SessionManager): AuthInterceptor {
-        return AuthInterceptor(sessionManager)
+    fun provideAuthInterceptor(
+        sessionManager: SessionManager,
+        serverConfigDao: ServerConfigDao
+    ): AuthInterceptor {
+        return AuthInterceptor(sessionManager, serverConfigDao)
     }
 
     @Provides

@@ -7,7 +7,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.ApiErrorDto
 import com.devlosoft.megaposmobile.data.remote.dto.LoginRequestDto
 import com.devlosoft.megaposmobile.domain.model.Token
 import com.devlosoft.megaposmobile.domain.repository.AuthRepository
-import com.devlosoft.megaposmobile.util.CryptoHelper
+import com.devlosoft.megaposmobile.util.TablaDesencriptado
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -25,8 +25,8 @@ class AuthRepositoryImpl @Inject constructor(
         emit(Resource.Loading())
 
         try {
-            // Encrypt password before sending to server
-            val encryptedPassword = CryptoHelper.encrypt(password)
+            // Encrypt password using character substitution before sending to server
+            val encryptedPassword = TablaDesencriptado.encrypt(password)
             val response = authApi.login(LoginRequestDto(code = code, password = encryptedPassword))
 
             if (response.isSuccessful) {

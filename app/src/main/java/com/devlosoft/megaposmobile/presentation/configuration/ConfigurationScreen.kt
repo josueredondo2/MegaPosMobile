@@ -1,4 +1,4 @@
-package com.devlosoft.megaposmobile.presentation.login
+package com.devlosoft.megaposmobile.presentation.configuration
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,23 +12,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -48,11 +40,9 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.R
@@ -61,26 +51,27 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
 
 @Composable
-fun LoginScreen(
-    viewModel: LoginViewModel = hiltViewModel(),
-    onLoginSuccess: () -> Unit,
-    onNavigateToConfiguration: () -> Unit
+fun ConfigurationScreen(
+    viewModel: ConfigurationViewModel = hiltViewModel(),
+    onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
     val dimensions = LocalDimensions.current
 
-    LaunchedEffect(state.isLoginSuccessful) {
-        if (state.isLoginSuccessful) {
-            onLoginSuccess()
+    LaunchedEffect(state.isSaved) {
+        if (state.isSaved) {
+            snackbarHostState.showSnackbar("Configuración guardada exitosamente")
+            viewModel.onEvent(ConfigurationEvent.ClearSavedFlag)
+            onBack()
         }
     }
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
             snackbarHostState.showSnackbar(error)
-            viewModel.onEvent(LoginEvent.ClearError)
+            viewModel.onEvent(ConfigurationEvent.ClearError)
         }
     }
 
@@ -140,7 +131,7 @@ fun LoginScreen(
 
                     // Título
                     Text(
-                        text = "MegaPOS Mobile",
+                        text = "POS Mobile",
                         fontSize = dimensions.fontSizeTitle,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -150,7 +141,7 @@ fun LoginScreen(
 
                     // Subtítulo
                     Text(
-                        text = "Iniciar Sesión",
+                        text = "Configura esta unidad",
                         fontSize = dimensions.fontSizeLarge,
                         color = Color.Gray,
                         textAlign = TextAlign.Center
@@ -158,19 +149,59 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // User Code Field
+                    // Campo Dirección POS API
                     OutlinedTextField(
-                        value = state.userCode,
-                        onValueChange = { viewModel.onEvent(LoginEvent.UserCodeChanged(it)) },
+                        value = state.serverUrl,
+                        onValueChange = { viewModel.onEvent(ConfigurationEvent.ServerUrlChanged(it)) },
                         label = {
                             Text(
-                                text = "Código de Usuario",
+                                text = "Dirección POS API",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
                         placeholder = {
                             Text(
-                                text = "Ingrese su código",
+                                text = "http://[dominio]:puerto",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(dimensions.textFieldHeight),
+                        enabled = !state.isLoading,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = dimensions.fontSizeMedium
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MegaSuperRed,
+                            focusedLabelColor = MegaSuperRed,
+                            cursorColor = MegaSuperRed
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Campo Host Name
+                    OutlinedTextField(
+                        value = state.hostname,
+                        onValueChange = { viewModel.onEvent(ConfigurationEvent.HostnameChanged(it)) },
+                        label = {
+                            Text(
+                                text = "Host Name",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        placeholder = {
+                            Text(
+                                text = "android-pos-01",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
@@ -189,89 +220,25 @@ fun LoginScreen(
                         ),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    // Password Field
-                    OutlinedTextField(
-                        value = state.password,
-                        onValueChange = { viewModel.onEvent(LoginEvent.PasswordChanged(it)) },
-                        label = {
-                            Text(
-                                text = "Contraseña",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        placeholder = {
-                            Text(
-                                text = "Ingrese su contraseña",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(dimensions.textFieldHeight),
-                        enabled = !state.isLoading,
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontSize = dimensions.fontSizeMedium
-                        ),
-                        visualTransformation = if (state.isPasswordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            IconButton(
-                                onClick = { viewModel.onEvent(LoginEvent.TogglePasswordVisibility) }
-                            ) {
-                                Icon(
-                                    imageVector = if (state.isPasswordVisible) {
-                                        Icons.Default.VisibilityOff
-                                    } else {
-                                        Icons.Default.Visibility
-                                    },
-                                    contentDescription = if (state.isPasswordVisible) {
-                                        "Ocultar contraseña"
-                                    } else {
-                                        "Mostrar contraseña"
-                                    },
-                                    modifier = Modifier.size(dimensions.iconSizeMedium)
-                                )
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MegaSuperRed,
-                            focusedLabelColor = MegaSuperRed,
-                            cursorColor = MegaSuperRed
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Done
                         ),
                         keyboardActions = KeyboardActions(
                             onDone = {
                                 focusManager.clearFocus()
-                                viewModel.onEvent(LoginEvent.Login)
+                                viewModel.onEvent(ConfigurationEvent.Save)
                             }
                         )
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Login Button
+                    // Botón Guardar
                     Button(
-                        onClick = { viewModel.onEvent(LoginEvent.Login) },
+                        onClick = { viewModel.onEvent(ConfigurationEvent.Save) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(dimensions.buttonHeight),
-                        enabled = !state.isLoading && state.userCode.isNotBlank() && state.password.isNotBlank(),
+                        enabled = !state.isLoading,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MegaSuperRed,
@@ -285,35 +252,11 @@ fun LoginScreen(
                             )
                         } else {
                             Text(
-                                text = "Iniciar Sesión",
+                                text = "Guardar",
                                 fontSize = dimensions.fontSizeExtraLarge,
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerLarge))
-
-                    // Configuration Button
-                    OutlinedButton(
-                        onClick = onNavigateToConfiguration,
-                        enabled = !state.isLoading,
-                        modifier = Modifier.height(dimensions.buttonHeight),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MegaSuperRed
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            modifier = Modifier.size(dimensions.iconSizeSmall)
-                        )
-                        Spacer(modifier = Modifier.width(dimensions.spacerSmall))
-                        Text(
-                            text = "Configuración",
-                            fontSize = dimensions.fontSizeMedium
-                        )
                     }
                 }
             }
