@@ -5,6 +5,7 @@ data class HomeState(
     val currentDate: String = "",
     val terminalName: String = "",
     val stationStatus: String = "Cerrado",
+    val isStationOpen: Boolean = false,
     val isLoading: Boolean = true,
     val showTodoDialog: Boolean = false,
     val todoDialogTitle: String = "",

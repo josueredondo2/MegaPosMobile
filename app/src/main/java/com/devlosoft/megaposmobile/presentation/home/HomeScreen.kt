@@ -230,6 +230,7 @@ fun HomeScreen(
                         icon = Icons.Default.AttachMoney,
                         title = "Facturación",
                         description = "Ingresa para facturar",
+                        enabled = state.isStationOpen,
                         onClick = { viewModel.onEvent(HomeEvent.Billing) }
                     )
 
@@ -255,20 +256,22 @@ fun MenuCard(
     icon: ImageVector,
     title: String,
     description: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val dimensions = LocalDimensions.current
+    val alpha = if (enabled) 1f else 0.5f
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (enabled) Color.White else Color(0xFFF0F0F0)
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
+            defaultElevation = if (enabled) 2.dp else 0.dp
         )
     ) {
         Row(
@@ -282,13 +285,13 @@ fun MenuCard(
                 modifier = Modifier
                     .size(dimensions.iconSizeLarge * 0.8f)
                     .clip(CircleShape)
-                    .background(Color(0xFFE8E8E8)),
+                    .background(if (enabled) Color(0xFFE8E8E8) else Color(0xFFD8D8D8)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = Color(0xFF7B68EE),
+                    tint = if (enabled) Color(0xFF7B68EE) else Color(0xFFAAAAAA),
                     modifier = Modifier.size(dimensions.iconSizeMedium)
                 )
             }
@@ -302,7 +305,7 @@ fun MenuCard(
                     text = title,
                     fontSize = dimensions.fontSizeLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = if (enabled) Color.Black else Color.Gray
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -310,7 +313,7 @@ fun MenuCard(
                 Text(
                     text = description,
                     fontSize = dimensions.fontSizeMedium,
-                    color = Color.Gray
+                    color = if (enabled) Color.Gray else Color.LightGray
                 )
             }
         }

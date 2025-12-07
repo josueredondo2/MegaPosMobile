@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
@@ -59,6 +60,7 @@ class HomeViewModel @Inject constructor(
                         currentDate = currentDate,
                         terminalName = terminalName,
                         stationStatus = stationStatus.getDisplayText(),
+                        isStationOpen = status == StationState.OPEN,
                         isLoading = false
                     )
                 }
