@@ -231,7 +231,7 @@ fun BillingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(dimensions.buttonHeight),
-                        enabled = state.selectedCustomer != null && !state.isCreatingTransaction,
+                        enabled = !state.isCreatingTransaction,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MegaSuperRed,
                             disabledContainerColor = Color.Gray

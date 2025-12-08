@@ -116,55 +116,15 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun startTransaction() {
-        viewModelScope.launch {
-            val sessionId = sessionManager.getSessionId().first()
-            val stationId = sessionManager.getStationId().first()
+        // Use default customer if none selected
+        val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
 
-            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
-                _state.update {
-                    it.copy(createTransactionError = "No hay sesión activa")
-                }
-                return@launch
-            }
-
-            val selectedCustomer = _state.value.selectedCustomer
-
-            billingRepository.createTransaction(
-                sessionId = sessionId,
-                workstationId = stationId,
-                customerId = selectedCustomer?.partyId.toString(),
-                customerIdType = selectedCustomer?.identificationType,
-                customerName = selectedCustomer?.name
-            ).collect { result ->
-                when (result) {
-                    is Resource.Loading -> {
-                        _state.update {
-                            it.copy(
-                                isCreatingTransaction = true,
-                                createTransactionError = null
-                            )
-                        }
-                    }
-                    is Resource.Success -> {
-                        _state.update {
-                            it.copy(
-                                isCreatingTransaction = false,
-                                transactionCode = result.data ?: "",
-                                isTransactionCreated = true,
-                                shouldNavigateToTransaction = true
-                            )
-                        }
-                    }
-                    is Resource.Error -> {
-                        _state.update {
-                            it.copy(
-                                isCreatingTransaction = false,
-                                createTransactionError = result.message
-                            )
-                        }
-                    }
-                }
-            }
+        // Just update state and navigate - transaction will be created when adding first article
+        _state.update {
+            it.copy(
+                selectedCustomer = customerToUse,
+                shouldNavigateToTransaction = true
+            )
         }
     }
 
@@ -195,15 +155,16 @@ class BillingViewModel @Inject constructor(
                 return@launch
             }
 
-            val selectedCustomer = _state.value.selectedCustomer
+            // Use default customer if none selected
+            val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
 
             // First create the transaction
             billingRepository.createTransaction(
                 sessionId = sessionId,
                 workstationId = stationId,
-                customerId = selectedCustomer?.identification,
-                customerIdType = selectedCustomer?.identificationType,
-                customerName = selectedCustomer?.name
+                customerId = customerToUse.partyId.toString(),
+                customerIdType = customerToUse.identificationType,
+                customerName = customerToUse.name
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
