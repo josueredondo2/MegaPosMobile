@@ -54,14 +54,17 @@ private val BackgroundGray = Color(0xFFF5F5F5)
 fun ProcessScreen(
     processType: String,
     viewModel: ProcessViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    autoStartProcess: Boolean = true
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
 
     // Start the process when screen is launched
     LaunchedEffect(processType) {
-        viewModel.startProcess(processType)
+        if (autoStartProcess) {
+            viewModel.startProcess(processType)
+        }
     }
 
     Scaffold { paddingValues ->

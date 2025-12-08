@@ -14,6 +14,7 @@ import com.devlosoft.megaposmobile.presentation.configuration.ConfigurationScree
 import com.devlosoft.megaposmobile.presentation.home.HomeScreen
 import com.devlosoft.megaposmobile.presentation.login.LoginScreen
 import com.devlosoft.megaposmobile.presentation.process.ProcessScreen
+import com.devlosoft.megaposmobile.presentation.process.ProcessViewModel
 
 @Composable
 fun NavGraph(
@@ -108,13 +109,42 @@ fun NavGraph(
 
             TransactionScreen(
                 viewModel = billingViewModel,
-                onFinalize = {
-                    // Navigate back to Billing screen for a new transaction
-                    navController.popBackStack(Screen.Billing.route, inclusive = false)
+                onNavigateToPayment = { transactionId, amount ->
+                    navController.navigate(Screen.PaymentProcess.createRoute(transactionId, amount))
                 },
                 onBack = {
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // Payment process screen
+        composable(
+            route = Screen.PaymentProcess.route,
+            arguments = listOf(
+                navArgument("transactionId") { type = NavType.StringType },
+                navArgument("amount") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
+            val amount = backStackEntry.arguments?.getString("amount")?.toDoubleOrNull() ?: 0.0
+            val processViewModel: ProcessViewModel = hiltViewModel()
+
+            // Start payment process when screen is launched
+            androidx.compose.runtime.LaunchedEffect(transactionId, amount) {
+                processViewModel.startPaymentProcess(transactionId, amount)
+            }
+
+            ProcessScreen(
+                processType = "payment",
+                viewModel = processViewModel,
+                onBack = {
+                    // Navigate back to Billing screen for a new transaction
+                    navController.navigate(Screen.Billing.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                },
+                autoStartProcess = false
             )
         }
     }

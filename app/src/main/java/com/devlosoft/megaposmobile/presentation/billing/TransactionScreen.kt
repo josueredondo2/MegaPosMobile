@@ -35,7 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -60,28 +59,13 @@ import java.util.Locale
 @Composable
 fun TransactionScreen(
     viewModel: BillingViewModel = hiltViewModel(),
-    onFinalize: () -> Unit,
+    onNavigateToPayment: (transactionId: String, amount: Double) -> Unit,
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
     val numberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CR")).apply {
         maximumFractionDigits = 0
-    }
-
-    // Handle navigation back to billing after finalizing
-    LaunchedEffect(state.shouldNavigateBackToBilling) {
-        if (state.shouldNavigateBackToBilling) {
-            try {
-                android.util.Log.d("TransactionScreen", "Starting navigation back to billing...")
-                viewModel.onEvent(BillingEvent.ResetForNewTransaction)
-                android.util.Log.d("TransactionScreen", "ResetForNewTransaction event sent, calling onFinalize...")
-                onFinalize()
-                android.util.Log.d("TransactionScreen", "onFinalize completed")
-            } catch (e: Exception) {
-                android.util.Log.e("TransactionScreen", "Error during navigation: ${e.message}", e)
-            }
-        }
     }
 
     // Error dialog for adding article
@@ -319,30 +303,28 @@ fun TransactionScreen(
 
             // Finalize button
             Button(
-                onClick = { viewModel.onEvent(BillingEvent.FinalizeTransaction) },
+                onClick = {
+                    // Navigate to payment process with transaction ID and total amount
+                    onNavigateToPayment(
+                        state.transactionCode,
+                        state.invoiceData.totals.total
+                    )
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(dimensions.buttonHeight),
-                enabled = state.invoiceData.items.isNotEmpty() && !state.isFinalizingTransaction,
+                enabled = state.invoiceData.items.isNotEmpty() && state.transactionCode.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MegaSuperRed,
                     disabledContainerColor = Color.Gray
                 ),
                 shape = RoundedCornerShape(0.dp)
             ) {
-                if (state.isFinalizingTransaction) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = "Finalizar",
-                        fontSize = dimensions.fontSizeExtraLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Text(
+                    text = "Finalizar",
+                    fontSize = dimensions.fontSizeExtraLarge,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

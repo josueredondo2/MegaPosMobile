@@ -12,4 +12,7 @@ sealed class Screen(val route: String) {
     data object Process : Screen("process/{processType}") {
         fun createRoute(processType: String) = "process/$processType"
     }
+    data object PaymentProcess : Screen("payment-process/{transactionId}/{amount}") {
+        fun createRoute(transactionId: String, amount: Double) = "payment-process/$transactionId/$amount"
+    }
 }

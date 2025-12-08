@@ -5,14 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,12 +25,14 @@ import javax.inject.Inject
 object ProcessTypes {
     const val OPEN_TERMINAL = "openTerminal"
     const val CLOSE_TERMINAL = "closeTerminal"
+    const val FINALIZE_PAYMENT = "finalizePayment"
 }
 
 @HiltViewModel
 class ProcessViewModel @Inject constructor(
     private val openTerminalUseCase: OpenTerminalUseCase,
     private val closeTerminalUseCase: CloseTerminalUseCase,
+    private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
     private val stationStatus: StationStatus
 ) : ViewModel() {
@@ -41,6 +47,61 @@ class ProcessViewModel @Inject constructor(
             else -> {
                 _state.update {
                     it.copy(status = ProcessStatus.Error("Tipo de proceso desconocido"))
+                }
+            }
+        }
+    }
+
+    fun startPaymentProcess(transactionId: String, amount: Double) {
+        viewModelScope.launch {
+            // Format amount as currency
+            val numberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CR")).apply {
+                maximumFractionDigits = 0
+            }
+            val formattedAmount = numberFormat.format(amount)
+
+            // Set loading state with payment message
+            _state.update {
+                it.copy(
+                    status = ProcessStatus.Loading,
+                    loadingMessage = "Favor realice el pago en el datafono\npor el monto de $formattedAmount"
+                )
+            }
+
+            // Simulate 3 second wait for payment
+            delay(3000)
+
+            // Get session data
+            val sessionId = sessionManager.getSessionId().first()
+            val stationId = sessionManager.getStationId().first()
+
+            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                _state.update {
+                    it.copy(status = ProcessStatus.Error("No hay sesión activa"))
+                }
+                return@launch
+            }
+
+            // Call finalize transaction
+            billingRepository.finalizeTransaction(
+                sessionId = sessionId,
+                workstationId = stationId,
+                transactionId = transactionId
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        // Already in loading state
+                    }
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
+                        }
+                    }
                 }
             }
         }
