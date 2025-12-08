@@ -35,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -68,7 +69,22 @@ fun TransactionScreen(
         maximumFractionDigits = 0
     }
 
-    // Error dialog
+    // Handle navigation back to billing after finalizing
+    LaunchedEffect(state.shouldNavigateBackToBilling) {
+        if (state.shouldNavigateBackToBilling) {
+            try {
+                android.util.Log.d("TransactionScreen", "Starting navigation back to billing...")
+                viewModel.onEvent(BillingEvent.ResetForNewTransaction)
+                android.util.Log.d("TransactionScreen", "ResetForNewTransaction event sent, calling onFinalize...")
+                onFinalize()
+                android.util.Log.d("TransactionScreen", "onFinalize completed")
+            } catch (e: Exception) {
+                android.util.Log.e("TransactionScreen", "Error during navigation: ${e.message}", e)
+            }
+        }
+    }
+
+    // Error dialog for adding article
     state.addArticleError?.let { error ->
         AlertDialog(
             onDismissRequest = { viewModel.onEvent(BillingEvent.DismissAddArticleError) },
@@ -76,6 +92,20 @@ fun TransactionScreen(
             text = { Text(error) },
             confirmButton = {
                 TextButton(onClick = { viewModel.onEvent(BillingEvent.DismissAddArticleError) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // Error dialog for finalizing transaction
+    state.finalizeTransactionError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(BillingEvent.DismissFinalizeTransactionError) },
+            title = { Text("Error") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(BillingEvent.DismissFinalizeTransactionError) }) {
                     Text("Aceptar")
                 }
             }
@@ -289,22 +319,30 @@ fun TransactionScreen(
 
             // Finalize button
             Button(
-                onClick = onFinalize,
+                onClick = { viewModel.onEvent(BillingEvent.FinalizeTransaction) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(dimensions.buttonHeight),
-                enabled = state.invoiceData.items.isNotEmpty(),
+                enabled = state.invoiceData.items.isNotEmpty() && !state.isFinalizingTransaction,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MegaSuperRed,
                     disabledContainerColor = Color.Gray
                 ),
                 shape = RoundedCornerShape(0.dp)
             ) {
-                Text(
-                    text = "Finalizar",
-                    fontSize = dimensions.fontSizeExtraLarge,
-                    fontWeight = FontWeight.Medium
-                )
+                if (state.isFinalizingTransaction) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Finalizar",
+                        fontSize = dimensions.fontSizeExtraLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

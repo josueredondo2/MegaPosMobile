@@ -67,6 +67,16 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.DismissAddArticleError -> {
                 _state.update { it.copy(addArticleError = null) }
             }
+            is BillingEvent.FinalizeTransaction -> {
+                finalizeTransaction()
+            }
+            is BillingEvent.DismissFinalizeTransactionError -> {
+                _state.update { it.copy(finalizeTransactionError = null) }
+            }
+            is BillingEvent.ResetForNewTransaction -> {
+                // Reset all state for a new transaction
+                _state.value = BillingState()
+            }
             is BillingEvent.GoBack -> {
                 // Handle in screen
             }
@@ -235,6 +245,82 @@ class BillingViewModel @Inject constructor(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private fun finalizeTransaction() {
+        android.util.Log.d("BillingViewModel", "finalizeTransaction() called")
+        val transactionCode = _state.value.transactionCode
+        if (transactionCode.isBlank()) {
+            android.util.Log.e("BillingViewModel", "No transaction code")
+            _state.update {
+                it.copy(finalizeTransactionError = "No hay transacción activa")
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("BillingViewModel", "Getting session data...")
+                val sessionId = sessionManager.getSessionId().first()
+                val stationId = sessionManager.getStationId().first()
+                android.util.Log.d("BillingViewModel", "Session: $sessionId, Station: $stationId")
+
+                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(finalizeTransactionError = "No hay sesión activa")
+                    }
+                    return@launch
+                }
+
+                android.util.Log.d("BillingViewModel", "Calling billingRepository.finalizeTransaction...")
+                billingRepository.finalizeTransaction(
+                    sessionId = sessionId,
+                    workstationId = stationId,
+                    transactionId = transactionCode
+                ).collect { result ->
+                    android.util.Log.d("BillingViewModel", "Result received: $result")
+                    when (result) {
+                        is Resource.Loading -> {
+                            android.util.Log.d("BillingViewModel", "Loading...")
+                            _state.update {
+                                it.copy(
+                                    isFinalizingTransaction = true,
+                                    finalizeTransactionError = null
+                                )
+                            }
+                        }
+                        is Resource.Success -> {
+                            android.util.Log.d("BillingViewModel", "Success! Updating state...")
+                            _state.update {
+                                it.copy(
+                                    isFinalizingTransaction = false,
+                                    isTransactionFinalized = true,
+                                    shouldNavigateBackToBilling = true
+                                )
+                            }
+                            android.util.Log.d("BillingViewModel", "State updated successfully")
+                        }
+                        is Resource.Error -> {
+                            android.util.Log.e("BillingViewModel", "Error: ${result.message}")
+                            _state.update {
+                                it.copy(
+                                    isFinalizingTransaction = false,
+                                    finalizeTransactionError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("BillingViewModel", "Exception in finalizeTransaction: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isFinalizingTransaction = false,
+                        finalizeTransactionError = "Error: ${e.message}"
+                    )
                 }
             }
         }

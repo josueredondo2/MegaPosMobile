@@ -20,4 +20,9 @@ interface BillingRepository {
         quantity: Double,
         partyAffiliationTypeCode: String?
     ): Flow<Resource<InvoiceData>>
+    suspend fun finalizeTransaction(
+        sessionId: String,
+        workstationId: String,
+        transactionId: String
+    ): Flow<Resource<Boolean>>
 }

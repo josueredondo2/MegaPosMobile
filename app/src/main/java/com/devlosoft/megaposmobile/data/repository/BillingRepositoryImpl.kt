@@ -6,6 +6,7 @@ import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
@@ -97,6 +98,40 @@ class BillingRepositoryImpl @Inject constructor(
                     emit(Resource.Success(invoiceData))
                 } else {
                     emit(Resource.Error("Respuesta vacía del servidor"))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun finalizeTransaction(
+        sessionId: String,
+        workstationId: String,
+        transactionId: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = FinalizeTransactionRequestDto(
+                sessionId = sessionId,
+                workstationId = workstationId,
+                transactionId = transactionId
+            )
+            val response = transactionApi.finalizeTransaction(request)
+            if (response.isSuccessful) {
+                val success = response.body()?.success ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    val message = response.body()?.message ?: "Error al finalizar transacción"
+                    emit(Resource.Error(message))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()

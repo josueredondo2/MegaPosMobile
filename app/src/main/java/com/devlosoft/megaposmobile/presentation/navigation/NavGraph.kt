@@ -94,14 +94,23 @@ fun NavGraph(
 
         composable(route = Screen.TransactionDetail.route) {
             // Get the ViewModel from the billing backstack entry to share state
-            val billingEntry = navController.getBackStackEntry(Screen.Billing.route)
+            // Use try-catch because the billing entry might be removed during navigation
+            val billingEntry = try {
+                navController.getBackStackEntry(Screen.Billing.route)
+            } catch (e: IllegalArgumentException) {
+                // Billing entry was removed, navigate back to billing
+                navController.navigate(Screen.Billing.route) {
+                    popUpTo(Screen.Home.route) { inclusive = false }
+                }
+                return@composable
+            }
             val billingViewModel: BillingViewModel = hiltViewModel(billingEntry)
 
             TransactionScreen(
                 viewModel = billingViewModel,
                 onFinalize = {
-                    // TODO: Implement finalize transaction flow
-                    navController.popBackStack(Screen.Home.route, inclusive = false)
+                    // Navigate back to Billing screen for a new transaction
+                    navController.popBackStack(Screen.Billing.route, inclusive = false)
                 },
                 onBack = {
                     navController.popBackStack()

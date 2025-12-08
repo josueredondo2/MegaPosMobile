@@ -20,6 +20,11 @@ sealed class BillingEvent {
     data object AddArticle : BillingEvent()
     data object DismissAddArticleError : BillingEvent()
 
+    // Finalize transaction events
+    data object FinalizeTransaction : BillingEvent()
+    data object DismissFinalizeTransactionError : BillingEvent()
+    data object ResetForNewTransaction : BillingEvent()
+
     // Navigation events
     data object GoBack : BillingEvent()
 }

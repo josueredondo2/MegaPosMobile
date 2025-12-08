@@ -23,6 +23,12 @@ data class BillingState(
     val isAddingArticle: Boolean = false,
     val addArticleError: String? = null,
 
+    // Finalize transaction state
+    val isFinalizingTransaction: Boolean = false,
+    val finalizeTransactionError: String? = null,
+    val isTransactionFinalized: Boolean = false,
+
     // Navigation state
-    val shouldNavigateToTransaction: Boolean = false
+    val shouldNavigateToTransaction: Boolean = false,
+    val shouldNavigateBackToBilling: Boolean = false
 )
