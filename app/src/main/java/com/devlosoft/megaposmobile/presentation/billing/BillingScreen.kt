@@ -30,6 +30,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +43,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,10 +67,13 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
 fun BillingScreen(
     viewModel: BillingViewModel = hiltViewModel(),
     onNavigateToTransaction: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onLogout: () -> Unit,
+    onNavigateToHome: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
+    var showUserMenu by remember { mutableStateOf(false) }
 
     // Handle navigation to transaction screen
     LaunchedEffect(state.shouldNavigateToTransaction) {
@@ -117,12 +125,38 @@ fun BillingScreen(
                             modifier = Modifier.height(dimensions.headerHeight * 0.6f),
                             contentScale = ContentScale.FillHeight
                         )
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = "Usuario",
-                            tint = MegaSuperWhite,
-                            modifier = Modifier.size(dimensions.iconSizeLarge * 0.6f)
-                        )
+
+                        // User icon with dropdown menu
+                        Box {
+                            IconButton(onClick = { showUserMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Usuario",
+                                    tint = MegaSuperWhite,
+                                    modifier = Modifier.size(dimensions.iconSizeLarge * 0.6f)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showUserMenu,
+                                onDismissRequest = { showUserMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Volver al menú principal") },
+                                    onClick = {
+                                        showUserMenu = false
+                                        onNavigateToHome()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Cerrar sesión") },
+                                    onClick = {
+                                        showUserMenu = false
+                                        onLogout()
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
 

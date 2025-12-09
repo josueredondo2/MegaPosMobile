@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -79,8 +80,9 @@ fun NavGraph(
 
         // Billing flow - share ViewModel between screens
         composable(route = Screen.Billing.route) { backStackEntry ->
-            val parentEntry = navController.getBackStackEntry(Screen.Billing.route)
-            val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
+            // Use the backStackEntry parameter directly instead of getBackStackEntry
+            // to avoid crashes during navigation transitions
+            val billingViewModel: BillingViewModel = hiltViewModel(backStackEntry)
 
             BillingScreen(
                 viewModel = billingViewModel,
@@ -89,22 +91,39 @@ fun NavGraph(
                 },
                 onBack = {
                     navController.popBackStack()
+                },
+                onLogout = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onNavigateToHome = {
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 }
             )
         }
 
         composable(route = Screen.TransactionDetail.route) {
             // Get the ViewModel from the billing backstack entry to share state
-            // Use try-catch because the billing entry might be removed during navigation
-            val billingEntry = try {
-                navController.getBackStackEntry(Screen.Billing.route)
-            } catch (e: IllegalArgumentException) {
-                // Billing entry was removed, navigate back to billing
-                navController.navigate(Screen.Billing.route) {
-                    popUpTo(Screen.Home.route) { inclusive = false }
+            // Cache the entry to avoid issues during recomposition when navigating away
+            val billingEntry = remember {
+                try {
+                    navController.getBackStackEntry(Screen.Billing.route)
+                } catch (e: IllegalArgumentException) {
+                    null
+                }
+            }
+
+            // If billing entry doesn't exist, navigate back
+            if (billingEntry == null) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.navigate(Screen.Billing.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
                 }
                 return@composable
             }
+
             val billingViewModel: BillingViewModel = hiltViewModel(billingEntry)
 
             TransactionScreen(
@@ -114,6 +133,14 @@ fun NavGraph(
                 },
                 onBack = {
                     navController.popBackStack()
+                },
+                onLogout = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onNavigateToHome = {
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 }
             )
         }
