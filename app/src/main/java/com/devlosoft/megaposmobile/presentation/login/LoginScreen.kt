@@ -1,11 +1,8 @@
 package com.devlosoft.megaposmobile.presentation.login
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,12 +47,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.devlosoft.megaposmobile.R
+import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
@@ -93,35 +89,10 @@ fun LoginScreen(
                 .padding(paddingValues)
                 .background(Color.White)
         ) {
-            // Header rojo con logo y versión
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MegaSuperRed)
-                    .height(dimensions.headerHeight)
-                    .padding(horizontal = dimensions.paddingMedium),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Logo image
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_megasuper),
-                        contentDescription = "MegaSuper Logo",
-                        modifier = Modifier.height(dimensions.headerHeight * 0.6f),
-                        contentScale = ContentScale.FillHeight
-                    )
-                    // Version
-                    Text(
-                        text = "Version: 1.0",
-                        color = MegaSuperWhite,
-                        fontSize = dimensions.fontSizeMedium
-                    )
-                }
-            }
+            // Header
+            AppHeader(
+                endContent = HeaderEndContent.VersionText(version = "1.0")
+            )
 
             // Contenido centrado
             Box(

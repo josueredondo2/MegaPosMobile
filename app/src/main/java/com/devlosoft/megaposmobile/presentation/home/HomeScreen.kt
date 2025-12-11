@@ -1,9 +1,7 @@
 package com.devlosoft.megaposmobile.presentation.home
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -29,10 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,15 +39,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.devlosoft.megaposmobile.R
+import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
+import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
-import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
-import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
 
 @Composable
 fun HomeScreen(
@@ -111,58 +103,26 @@ fun HomeScreen(
                     .padding(paddingValues)
                     .background(Color.White)
             ) {
-            // Header rojo con logo y botón de usuario
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MegaSuperRed)
-                    .height(dimensions.headerHeight)
-                    .padding(horizontal = dimensions.paddingMedium),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Logo image
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_megasuper),
-                        contentDescription = "MegaSuper Logo",
-                        modifier = Modifier.height(dimensions.headerHeight * 0.6f),
-                        contentScale = ContentScale.FillHeight
-                    )
-                    // User icon button with dropdown menu
-                    Box {
-                        IconButton(
-                            onClick = { viewModel.onEvent(HomeEvent.ToggleUserMenu) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Usuario",
-                                tint = MegaSuperWhite,
-                                modifier = Modifier.size(dimensions.iconSizeLarge * 0.6f)
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = state.showUserMenu,
-                            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissUserMenu) }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Cerrar Sesión") },
-                                onClick = { viewModel.onEvent(HomeEvent.ShowLogoutConfirmDialog) },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                        contentDescription = "Cerrar Sesión"
-                                    )
-                                }
-                            )
+            // Header
+            AppHeader(
+                endContent = HeaderEndContent.UserMenu(
+                    items = listOf(
+                        MenuItem(
+                            text = "Cerrar Sesión",
+                            icon = Icons.AutoMirrored.Filled.ExitToApp,
+                            onClick = { viewModel.onEvent(HomeEvent.ShowLogoutConfirmDialog) }
+                        )
+                    ),
+                    expanded = state.showUserMenu,
+                    onExpandedChange = { isExpanded ->
+                        if (isExpanded) {
+                            viewModel.onEvent(HomeEvent.ToggleUserMenu)
+                        } else {
+                            viewModel.onEvent(HomeEvent.DismissUserMenu)
                         }
                     }
-                }
-            }
+                )
+            )
 
             // Contenido
             Box(

@@ -1,11 +1,9 @@
 package com.devlosoft.megaposmobile.presentation.process
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material3.Button
@@ -34,13 +31,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.devlosoft.megaposmobile.R
+import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperWhite
@@ -74,36 +70,10 @@ fun ProcessScreen(
                 .padding(paddingValues)
                 .background(BackgroundGray)
         ) {
-            // Header rojo con logo y icono de usuario
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MegaSuperRed)
-                    .height(dimensions.headerHeight)
-                    .padding(horizontal = dimensions.paddingMedium),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Logo image
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_megasuper),
-                        contentDescription = "MegaSuper Logo",
-                        modifier = Modifier.height(dimensions.headerHeight * 0.6f),
-                        contentScale = ContentScale.FillHeight
-                    )
-                    // User icon
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = "Usuario",
-                        tint = MegaSuperWhite,
-                        modifier = Modifier.size(dimensions.iconSizeLarge * 0.6f)
-                    )
-                }
-            }
+            // Header
+            AppHeader(
+                endContent = HeaderEndContent.StaticUserIcon
+            )
 
             // Content area
             Box(
