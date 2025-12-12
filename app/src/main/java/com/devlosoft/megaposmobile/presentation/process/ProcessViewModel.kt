@@ -1,10 +1,14 @@
 package com.devlosoft.megaposmobile.presentation.process
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.state.StationStatus
+import com.devlosoft.megaposmobile.core.util.BluetoothPrinterService
+import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
@@ -34,8 +38,14 @@ class ProcessViewModel @Inject constructor(
     private val closeTerminalUseCase: CloseTerminalUseCase,
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
-    private val stationStatus: StationStatus
+    private val stationStatus: StationStatus,
+    private val serverConfigDao: ServerConfigDao,
+    private val bluetoothPrinterService: BluetoothPrinterService
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "ProcessViewModel"
+    }
 
     private val _state = MutableStateFlow(ProcessState())
     val state: StateFlow<ProcessState> = _state.asStateFlow()
@@ -54,6 +64,8 @@ class ProcessViewModel @Inject constructor(
 
     fun startPaymentProcess(transactionId: String, amount: Double) {
         viewModelScope.launch {
+            Log.d(TAG, "startPaymentProcess() called - transactionId: $transactionId, amount: $amount")
+
             // Format amount as currency
             val numberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CR")).apply {
                 maximumFractionDigits = 0
@@ -83,6 +95,7 @@ class ProcessViewModel @Inject constructor(
             }
 
             // Call finalize transaction
+            Log.d(TAG, "Calling finalizeTransaction...")
             billingRepository.finalizeTransaction(
                 sessionId = sessionId,
                 workstationId = stationId,
@@ -93,17 +106,104 @@ class ProcessViewModel @Inject constructor(
                         // Already in loading state
                     }
                     is Resource.Success -> {
-                        _state.update {
-                            it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
-                        }
+                        Log.d(TAG, "Transaction finalized successfully, now printing...")
+                        // Transaction finalized successfully, now fetch and print documents
+                        fetchAndPrintDocuments(transactionId)
                     }
                     is Resource.Error -> {
+                        Log.e(TAG, "Error finalizing transaction: ${result.message}")
                         _state.update {
                             it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
                         }
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun fetchAndPrintDocuments(transactionId: String) {
+        Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionId")
+
+        billingRepository.getPrintDocuments(
+            transactionId = transactionId,
+            templateId = "01-FC",
+            isReprint = false,
+            copyNumber = 0
+        ).collect { result ->
+            when (result) {
+                is Resource.Loading -> {
+                    Log.d(TAG, "Fetching print documents...")
+                }
+                is Resource.Success -> {
+                    val documents = result.data ?: emptyList()
+                    Log.d(TAG, "Received ${documents.size} print documents")
+
+                    // Print each document
+                    for (document in documents) {
+                        printDocument(document)
+                    }
+
+                    // Update state after printing
+                    _state.update {
+                        it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
+                    }
+                    Log.d(TAG, "State updated successfully after printing")
+                }
+                is Resource.Error -> {
+                    Log.e(TAG, "Error fetching print documents: ${result.message}")
+                    // Still show success for the transaction, just log the print error
+                    _state.update {
+                        it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun printDocument(document: PrintDocument) {
+        Log.d(TAG, "Printing document: ${document.documentType}")
+
+        try {
+            val config = serverConfigDao.getActiveServerConfigSync()
+
+            if (config == null) {
+                Log.e(TAG, "No server config found")
+                return
+            }
+
+            val printText = document.printText
+            Log.d(TAG, "Print text length: ${printText.length}")
+
+            val result = if (config.usePrinterIp) {
+                // Print via IP
+                val printerIp = config.printerIp
+                if (printerIp.isBlank()) {
+                    Log.e(TAG, "Printer IP not configured")
+                    return
+                }
+                Log.d(TAG, "Printing via IP: $printerIp")
+                bluetoothPrinterService.printTestTextByIp(printerIp, printText)
+            } else {
+                // Print via Bluetooth
+                val bluetoothAddress = config.printerBluetoothAddress
+                if (bluetoothAddress.isBlank()) {
+                    Log.e(TAG, "Bluetooth printer not configured")
+                    return
+                }
+                Log.d(TAG, "Printing via Bluetooth: $bluetoothAddress")
+                bluetoothPrinterService.printTestText(bluetoothAddress, printText)
+            }
+
+            result.fold(
+                onSuccess = { message ->
+                    Log.d(TAG, "Print success: $message")
+                },
+                onFailure = { exception ->
+                    Log.e(TAG, "Print error: ${exception.message}")
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while printing: ${e.message}", e)
         }
     }
 

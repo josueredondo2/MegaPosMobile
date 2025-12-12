@@ -1,11 +1,14 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.util.BluetoothPrinterService
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.model.Customer
+import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +23,13 @@ import javax.inject.Inject
 class BillingViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
-    private val serverConfigDao: ServerConfigDao
+    private val serverConfigDao: ServerConfigDao,
+    private val bluetoothPrinterService: BluetoothPrinterService
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "BillingViewModel"
+    }
 
     private val _state = MutableStateFlow(BillingState())
     val state: StateFlow<BillingState> = _state.asStateFlow()
@@ -251,10 +259,10 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun finalizeTransaction() {
-        android.util.Log.d("BillingViewModel", "finalizeTransaction() called")
+        Log.d(TAG, "finalizeTransaction() called")
         val transactionCode = _state.value.transactionCode
         if (transactionCode.isBlank()) {
-            android.util.Log.e("BillingViewModel", "No transaction code")
+            Log.e(TAG, "No transaction code")
             _state.update {
                 it.copy(finalizeTransactionError = "No hay transacción activa")
             }
@@ -263,10 +271,10 @@ class BillingViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                android.util.Log.d("BillingViewModel", "Getting session data...")
+                Log.d(TAG, "Getting session data...")
                 val sessionId = sessionManager.getSessionId().first()
                 val stationId = sessionManager.getStationId().first()
-                android.util.Log.d("BillingViewModel", "Session: $sessionId, Station: $stationId")
+                Log.d(TAG, "Session: $sessionId, Station: $stationId")
 
                 if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
                     _state.update {
@@ -275,16 +283,16 @@ class BillingViewModel @Inject constructor(
                     return@launch
                 }
 
-                android.util.Log.d("BillingViewModel", "Calling billingRepository.finalizeTransaction...")
+                Log.d(TAG, "Calling billingRepository.finalizeTransaction...")
                 billingRepository.finalizeTransaction(
                     sessionId = sessionId,
                     workstationId = stationId,
                     transactionId = transactionCode
                 ).collect { result ->
-                    android.util.Log.d("BillingViewModel", "Result received: $result")
+                    Log.d(TAG, "Result received: $result")
                     when (result) {
                         is Resource.Loading -> {
-                            android.util.Log.d("BillingViewModel", "Loading...")
+                            Log.d(TAG, "Loading...")
                             _state.update {
                                 it.copy(
                                     isFinalizingTransaction = true,
@@ -293,18 +301,12 @@ class BillingViewModel @Inject constructor(
                             }
                         }
                         is Resource.Success -> {
-                            android.util.Log.d("BillingViewModel", "Success! Updating state...")
-                            _state.update {
-                                it.copy(
-                                    isFinalizingTransaction = false,
-                                    isTransactionFinalized = true,
-                                    shouldNavigateBackToBilling = true
-                                )
-                            }
-                            android.util.Log.d("BillingViewModel", "State updated successfully")
+                            Log.d(TAG, "Success! Now fetching print documents...")
+                            // Transaction finalized successfully, now fetch print documents
+                            fetchAndPrintDocuments(transactionCode)
                         }
                         is Resource.Error -> {
-                            android.util.Log.e("BillingViewModel", "Error: ${result.message}")
+                            Log.e(TAG, "Error: ${result.message}")
                             _state.update {
                                 it.copy(
                                     isFinalizingTransaction = false,
@@ -315,7 +317,7 @@ class BillingViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("BillingViewModel", "Exception in finalizeTransaction: ${e.message}", e)
+                Log.e(TAG, "Exception in finalizeTransaction: ${e.message}", e)
                 _state.update {
                     it.copy(
                         isFinalizingTransaction = false,
@@ -323,6 +325,100 @@ class BillingViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun fetchAndPrintDocuments(transactionCode: String) {
+        Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionCode")
+
+        billingRepository.getPrintDocuments(
+            transactionId = transactionCode,
+            templateId = "01-FC",
+            isReprint = false,
+            copyNumber = 0
+        ).collect { result ->
+            when (result) {
+                is Resource.Loading -> {
+                    Log.d(TAG, "Fetching print documents...")
+                }
+                is Resource.Success -> {
+                    val documents = result.data ?: emptyList()
+                    Log.d(TAG, "Received ${documents.size} print documents")
+
+                    // Print each document
+                    for (document in documents) {
+                        printDocument(document)
+                    }
+
+                    // Update state after printing
+                    _state.update {
+                        it.copy(
+                            isFinalizingTransaction = false,
+                            isTransactionFinalized = true,
+                            shouldNavigateBackToBilling = true
+                        )
+                    }
+                    Log.d(TAG, "State updated successfully after printing")
+                }
+                is Resource.Error -> {
+                    Log.e(TAG, "Error fetching print documents: ${result.message}")
+                    // Still finalize the transaction UI, just log the print error
+                    _state.update {
+                        it.copy(
+                            isFinalizingTransaction = false,
+                            isTransactionFinalized = true,
+                            shouldNavigateBackToBilling = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun printDocument(document: PrintDocument) {
+        Log.d(TAG, "Printing document: ${document.documentType}")
+
+        try {
+            val config = serverConfigDao.getActiveServerConfigSync()
+
+            if (config == null) {
+                Log.e(TAG, "No server config found")
+                return
+            }
+
+            val printText = document.printText
+            Log.d(TAG, "Print text length: ${printText.length}")
+
+            val result = if (config.usePrinterIp) {
+                // Print via IP
+                val printerIp = config.printerIp
+                if (printerIp.isBlank()) {
+                    Log.e(TAG, "Printer IP not configured")
+                    return
+                }
+                Log.d(TAG, "Printing via IP: $printerIp")
+                bluetoothPrinterService.printTestTextByIp(printerIp, printText)
+            } else {
+                // Print via Bluetooth
+                val bluetoothAddress = config.printerBluetoothAddress
+                if (bluetoothAddress.isBlank()) {
+                    Log.e(TAG, "Bluetooth printer not configured")
+                    return
+                }
+                Log.d(TAG, "Printing via Bluetooth: $bluetoothAddress")
+                bluetoothPrinterService.printTestText(bluetoothAddress, printText)
+            }
+
+            result.fold(
+                onSuccess = { message ->
+                    Log.d(TAG, "Print success: $message")
+                },
+                onFailure = { exception ->
+                    Log.e(TAG, "Print error: ${exception.message}")
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while printing: ${e.message}", e)
         }
     }
 }

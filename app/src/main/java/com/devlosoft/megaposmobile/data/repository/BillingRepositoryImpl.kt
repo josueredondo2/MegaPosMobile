@@ -9,6 +9,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -133,6 +134,43 @@ class BillingRepositoryImpl @Inject constructor(
                     val message = response.body()?.message ?: "Error al finalizar transacción"
                     emit(Resource.Error(message))
                 }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun getPrintDocuments(
+        transactionId: String,
+        templateId: String,
+        isReprint: Boolean,
+        copyNumber: Int
+    ): Flow<Resource<List<PrintDocument>>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.getPrintText(
+                transactionId = transactionId,
+                templateId = templateId,
+                isReprint = isReprint,
+                copyNumber = copyNumber
+            )
+            if (response.isSuccessful) {
+                val documents = response.body()?.documents?.map { dto ->
+                    PrintDocument(
+                        documentType = dto.documentType,
+                        printText = dto.printText,
+                        couponNumber = dto.couponNumber,
+                        promotionName = dto.promotionName
+                    )
+                } ?: emptyList()
+                emit(Resource.Success(documents))
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.domain.repository
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import kotlinx.coroutines.flow.Flow
 
 interface BillingRepository {
@@ -25,4 +26,10 @@ interface BillingRepository {
         workstationId: String,
         transactionId: String
     ): Flow<Resource<Boolean>>
+    suspend fun getPrintDocuments(
+        transactionId: String,
+        templateId: String = "01-FC",
+        isReprint: Boolean = false,
+        copyNumber: Int = 0
+    ): Flow<Resource<List<PrintDocument>>>
 }

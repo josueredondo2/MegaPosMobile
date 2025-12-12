@@ -6,9 +6,13 @@ import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface TransactionApi {
 
@@ -26,4 +30,12 @@ interface TransactionApi {
     suspend fun finalizeTransaction(
         @Body request: FinalizeTransactionRequestDto
     ): Response<FinalizeTransactionResponseDto>
+
+    @GET("transaction/{transactionId}/print")
+    suspend fun getPrintText(
+        @Path("transactionId") transactionId: String,
+        @Query("templateId") templateId: String = "01-FC",
+        @Query("isReprint") isReprint: Boolean = false,
+        @Query("copyNumber") copyNumber: Int = 0
+    ): Response<PrintTransactionResponseDto>
 }
