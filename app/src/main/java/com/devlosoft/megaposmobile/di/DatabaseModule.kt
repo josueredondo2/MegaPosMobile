@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.devlosoft.megaposmobile.core.common.Constants
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
+import com.devlosoft.megaposmobile.data.local.database.MIGRATION_1_2
 import com.devlosoft.megaposmobile.data.local.database.MegaPosDatabase
 import dagger.Module
 import dagger.Provides
@@ -24,6 +25,7 @@ object DatabaseModule {
             MegaPosDatabase::class.java,
             Constants.DATABASE_NAME
         )
+            .addMigrations(MIGRATION_1_2)
             .fallbackToDestructiveMigration()
             .build()
     }

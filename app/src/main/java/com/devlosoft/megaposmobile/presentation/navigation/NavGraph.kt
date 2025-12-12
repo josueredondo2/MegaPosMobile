@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.devlosoft.megaposmobile.presentation.advancedoptions.AdvancedOptionsScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingViewModel
 import com.devlosoft.megaposmobile.presentation.billing.TransactionScreen
@@ -47,6 +48,14 @@ fun NavGraph(
             )
         }
 
+        composable(route = Screen.AdvancedOptions.route) {
+            AdvancedOptionsScreen(
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable(route = Screen.Home.route) {
             HomeScreen(
                 onLogout = {
@@ -59,6 +68,9 @@ fun NavGraph(
                 },
                 onNavigateToBilling = {
                     navController.navigate(Screen.Billing.route)
+                },
+                onNavigateToAdvancedOptions = {
+                    navController.navigate(Screen.AdvancedOptions.route)
                 }
             )
         }

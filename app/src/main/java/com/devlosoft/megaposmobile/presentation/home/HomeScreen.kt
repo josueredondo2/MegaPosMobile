@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -52,7 +53,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onLogout: () -> Unit,
     onNavigateToProcess: (String) -> Unit = {},
-    onNavigateToBilling: () -> Unit = {}
+    onNavigateToBilling: () -> Unit = {},
+    onNavigateToAdvancedOptions: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -188,6 +190,15 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
 
                     MenuCard(
+                        icon = Icons.Default.Receipt,
+                        title = "Cierre de datafono",
+                        description = "Cerrar el lote de ventas del datafono.",
+                        onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    MenuCard(
                         icon = Icons.Default.AttachMoney,
                         title = "Facturación",
                         description = "Ingresa para facturar",
@@ -202,6 +213,15 @@ fun HomeScreen(
                         title = "Transacciones del dia",
                         description = "Ver transacciones realizadas durante el dia.",
                         onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    MenuCard(
+                        icon = Icons.Default.Settings,
+                        title = "Opciones Avanzadas",
+                        description = "Configurar impresora, datafono y otros dispositivos",
+                        onClick = { onNavigateToAdvancedOptions() }
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))

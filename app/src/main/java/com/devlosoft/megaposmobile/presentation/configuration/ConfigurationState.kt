@@ -4,6 +4,7 @@ data class ConfigurationState(
     val serverUrl: String = "",
     val hostname: String = "",
     val androidId: String = "",
+    val wifiIp: String = "",
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null

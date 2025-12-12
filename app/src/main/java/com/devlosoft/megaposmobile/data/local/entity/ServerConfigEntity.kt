@@ -10,5 +10,10 @@ data class ServerConfigEntity(
     val serverUrl: String,
     val serverName: String,
     val isActive: Boolean = true,
-    val lastConnected: Long? = null
+    val lastConnected: Long? = null,
+    val datafonUrl: String = "",
+    val printerIp: String = "",
+    val printerBluetoothAddress: String = "",
+    val printerBluetoothName: String = "",
+    val usePrinterIp: Boolean = true
 )

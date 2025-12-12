@@ -160,49 +160,6 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
 
-                    // Campo Host Name
-                    OutlinedTextField(
-                        value = state.hostname,
-                        onValueChange = { viewModel.onEvent(ConfigurationEvent.HostnameChanged(it)) },
-                        label = {
-                            Text(
-                                text = "Host Name",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        placeholder = {
-                            Text(
-                                text = "android-pos-01",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(dimensions.textFieldHeight),
-                        enabled = !state.isLoading,
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontSize = dimensions.fontSizeMedium
-                        ),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MegaSuperRed,
-                            focusedLabelColor = MegaSuperRed,
-                            cursorColor = MegaSuperRed
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                focusManager.clearFocus()
-                                viewModel.onEvent(ConfigurationEvent.Save)
-                            }
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
                     // Android ID Label (Read-only)
                     Column(
                         modifier = Modifier.fillMaxWidth()
@@ -216,6 +173,33 @@ fun ConfigurationScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = state.androidId.ifBlank { "Obteniendo..." },
+                            fontSize = dimensions.fontSizeMedium,
+                            color = Color.Black,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = Color(0xFFF5F5F5),
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // WiFi IP Label (Read-only)
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "IP WiFi Local",
+                            fontSize = dimensions.fontSizeSmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = state.wifiIp.ifBlank { "Obteniendo..." },
                             fontSize = dimensions.fontSizeMedium,
                             color = Color.Black,
                             modifier = Modifier

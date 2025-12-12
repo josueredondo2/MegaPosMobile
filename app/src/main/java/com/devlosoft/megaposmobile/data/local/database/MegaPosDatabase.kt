@@ -2,12 +2,25 @@ package com.devlosoft.megaposmobile.data.local.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
 
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Add new columns for advanced options
+        db.execSQL("ALTER TABLE server_config ADD COLUMN datafonUrl TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE server_config ADD COLUMN printerIp TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE server_config ADD COLUMN printerBluetoothAddress TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE server_config ADD COLUMN printerBluetoothName TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE server_config ADD COLUMN usePrinterIp INTEGER NOT NULL DEFAULT 1")
+    }
+}
+
 @Database(
     entities = [ServerConfigEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {
