@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
@@ -29,7 +30,8 @@ class HomeViewModel @Inject constructor(
     private val closeTerminalUseCase: CloseTerminalUseCase,
     private val sessionManager: SessionManager,
     private val serverConfigDao: ServerConfigDao,
-    private val stationStatus: StationStatus
+    private val stationStatus: StationStatus,
+    private val printerManager: PrinterManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -69,9 +71,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private var onLogoutCallback: (() -> Unit)? = null
+    private var onNavigateToBillingCallback: (() -> Unit)? = null
 
     fun setLogoutCallback(callback: () -> Unit) {
         onLogoutCallback = callback
+    }
+
+    fun setNavigateToBillingCallback(callback: () -> Unit) {
+        onNavigateToBillingCallback = callback
     }
 
     fun onEvent(event: HomeEvent) {
@@ -84,6 +91,12 @@ class HomeViewModel @Inject constructor(
             }
             is HomeEvent.Billing -> {
                 showTodoDialog("Facturación")
+            }
+            is HomeEvent.CheckPrinterAndNavigateToBilling -> {
+                checkPrinterConnection()
+            }
+            is HomeEvent.DismissPrinterError -> {
+                _state.update { it.copy(printerError = null) }
             }
             is HomeEvent.DailyTransactions -> {
                 showTodoDialog("Transacciones del día")
@@ -219,6 +232,40 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             logoutUseCase().collect { }
             onLogoutCallback?.invoke()
+        }
+    }
+
+    private fun checkPrinterConnection() {
+        viewModelScope.launch {
+            _state.update { it.copy(isCheckingPrinter = true, printerError = null) }
+
+            try {
+                // Test printer connection using PrinterManager
+                val result = printerManager.testPrinterConnection()
+
+                _state.update { it.copy(isCheckingPrinter = false) }
+
+                result.fold(
+                    onSuccess = {
+                        // Printer is connected, navigate to billing
+                        onNavigateToBillingCallback?.invoke()
+                    },
+                    onFailure = { exception ->
+                        // Printer is not connected, show error
+                        _state.update {
+                            it.copy(printerError = exception.message ?: "Error al conectar con la impresora")
+                        }
+                    }
+                )
+
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isCheckingPrinter = false,
+                        printerError = "Error inesperado: ${e.message}"
+                    )
+                }
+            }
         }
     }
 }

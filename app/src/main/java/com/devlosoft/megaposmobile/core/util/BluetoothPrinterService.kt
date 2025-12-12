@@ -6,6 +6,8 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.util.Log
+import com.devlosoft.megaposmobile.core.printer.PrinterDriverFactory
+import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +19,8 @@ import javax.inject.Singleton
 
 @Singleton
 class BluetoothPrinterService @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val printerDriverFactory: PrinterDriverFactory
 ) {
     private val bluetoothManager: BluetoothManager? by lazy {
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -36,65 +39,74 @@ class BluetoothPrinterService @Inject constructor(
     }
 
     /**
-     * Envía un texto de prueba a la impresora por red IP
-     * @param printerIp Dirección IP de la impresora
-     * @param text Texto a imprimir
-     * @return Result con éxito o error
+     * Sends text to the printer via network IP
+     * @param printerIp IP address of the printer
+     * @param text Text to print
+     * @param printerModel The printer model to use for formatting
+     * @return Result with success or error
      */
-    suspend fun printTestTextByIp(printerIp: String, text: String): Result<String> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "========== printTestTextByIp START ==========")
+    suspend fun printTextByIp(
+        printerIp: String,
+        text: String,
+        printerModel: PrinterModel
+    ): Result<String> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "========== printTextByIp START ==========")
         Log.d(TAG, "Printer IP: $printerIp")
+        Log.d(TAG, "Printer Model: ${printerModel.displayName}")
         Log.d(TAG, "Text to print: $text")
 
         var socket: java.net.Socket? = null
         var outputStream: OutputStream? = null
 
         try {
-            // Conectar a la impresora por TCP/IP (puerto 9100 es estándar para impresoras)
+            // Get the appropriate driver for the printer model
+            val driver = printerDriverFactory.createDriver(printerModel)
+            Log.d(TAG, "Using driver for: ${driver.getModel().displayName}")
+
+            // Connect to printer via TCP/IP (port 9100 is standard for printers)
             Log.d(TAG, "Connecting to printer at $printerIp:$PRINTER_PORT...")
             socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(printerIp, PRINTER_PORT), 5000) // 5 segundos timeout
+            socket.connect(java.net.InetSocketAddress(printerIp, PRINTER_PORT), 5000) // 5 seconds timeout
             Log.d(TAG, "✓ Connected successfully")
 
-            // Obtener output stream
+            // Get output stream
             outputStream = socket.getOutputStream()
             Log.d(TAG, "Output stream obtained")
 
-            // Generar comandos ZPL
-            val zplCommands = buildZPLTestLabel(text)
-            Log.d(TAG, "ZPL commands generated:")
-            Log.d(TAG, zplCommands)
+            // Generate printer commands using the driver
+            val printCommands = driver.buildLabel(text)
+            Log.d(TAG, "Print commands generated (${printCommands.size} bytes)")
 
-            // Enviar comandos
+            // Send commands
             Log.d(TAG, "Sending commands to printer...")
-            outputStream.write(zplCommands.toByteArray(Charsets.UTF_8))
+            outputStream.write(printCommands)
             outputStream.flush()
             Log.d(TAG, "✓ Commands sent successfully")
 
-            // Pequeña pausa para asegurar que se envió todo
+            // Small pause to ensure everything was sent
             Thread.sleep(500)
 
-            Log.d(TAG, "========== printTestTextByIp END (success) ==========")
+            Log.d(TAG, "========== printTextByIp END (success) ==========")
             Result.success("Impresión exitosa")
 
         } catch (e: java.net.SocketTimeoutException) {
             Log.e(TAG, "SocketTimeoutException: ${e.message}", e)
-            Log.d(TAG, "========== printTestTextByIp END (error) ==========")
+            Log.d(TAG, "========== printTextByIp END (error) ==========")
             Result.failure(Exception("Tiempo de conexión agotado. Verifique la IP y que la impresora esté en la red."))
         } catch (e: java.net.ConnectException) {
             Log.e(TAG, "ConnectException: ${e.message}", e)
-            Log.d(TAG, "========== printTestTextByIp END (error) ==========")
+            Log.d(TAG, "========== printTextByIp END (error) ==========")
             Result.failure(Exception("No se pudo conectar a la impresora. Verifique la IP: $printerIp"))
         } catch (e: IOException) {
             Log.e(TAG, "IOException: ${e.message}", e)
-            Log.d(TAG, "========== printTestTextByIp END (error) ==========")
+            Log.d(TAG, "========== printTextByIp END (error) ==========")
             Result.failure(Exception("Error de conexión: ${e.message}"))
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected exception: ${e.message}", e)
-            Log.d(TAG, "========== printTestTextByIp END (error) ==========")
+            Log.d(TAG, "========== printTextByIp END (error) ==========")
             Result.failure(Exception("Error inesperado: ${e.message}"))
         } finally {
-            // Cerrar recursos
+            // Close resources
             try {
                 outputStream?.close()
                 socket?.close()
@@ -106,21 +118,31 @@ class BluetoothPrinterService @Inject constructor(
     }
 
     /**
-     * Envía un texto de prueba a la impresora Bluetooth
-     * @param deviceAddress Dirección MAC del dispositivo Bluetooth
-     * @param text Texto a imprimir
-     * @return Result con éxito o error
+     * Sends text to the Bluetooth printer
+     * @param deviceAddress MAC address of the Bluetooth device
+     * @param text Text to print
+     * @param printerModel The printer model to use for formatting
+     * @return Result with success or error
      */
-    suspend fun printTestText(deviceAddress: String, text: String): Result<String> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "========== printTestText START ==========")
+    suspend fun printText(
+        deviceAddress: String,
+        text: String,
+        printerModel: PrinterModel
+    ): Result<String> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "========== printText START ==========")
         Log.d(TAG, "Device address: $deviceAddress")
+        Log.d(TAG, "Printer Model: ${printerModel.displayName}")
         Log.d(TAG, "Text to print: $text")
 
         var socket: BluetoothSocket? = null
         var outputStream: OutputStream? = null
 
         try {
-            // Obtener el dispositivo Bluetooth
+            // Get the appropriate driver for the printer model
+            val driver = printerDriverFactory.createDriver(printerModel)
+            Log.d(TAG, "Using driver for: ${driver.getModel().displayName}")
+
+            // Get Bluetooth device
             val device: BluetoothDevice? = bluetoothAdapter?.getRemoteDevice(deviceAddress)
             if (device == null) {
                 Log.e(TAG, "Device not found")
@@ -129,11 +151,11 @@ class BluetoothPrinterService @Inject constructor(
 
             Log.d(TAG, "Device found: ${device.name}")
 
-            // Crear socket
+            // Create socket
             socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
             Log.d(TAG, "Socket created")
 
-            // Cancelar discovery para mejorar conexión
+            // Cancel discovery to improve connection
             try {
                 bluetoothAdapter?.cancelDiscovery()
                 Log.d(TAG, "Discovery cancelled")
@@ -141,46 +163,45 @@ class BluetoothPrinterService @Inject constructor(
                 Log.w(TAG, "Could not cancel discovery (permission issue): ${e.message}")
             }
 
-            // Conectar
+            // Connect
             Log.d(TAG, "Connecting to device...")
             socket.connect()
-            Log.d(TAG, " Connected successfully")
+            Log.d(TAG, "✓ Connected successfully")
 
-            // Obtener output stream
+            // Get output stream
             outputStream = socket.outputStream
             Log.d(TAG, "Output stream obtained")
 
-            // Generar comandos ZPL para Zebra
-            val zplCommands = buildZPLTestLabel(text)
-            Log.d(TAG, "ZPL commands generated:")
-            Log.d(TAG, zplCommands)
+            // Generate printer commands using the driver
+            val printCommands = driver.buildLabel(text)
+            Log.d(TAG, "Print commands generated (${printCommands.size} bytes)")
 
-            // Enviar comandos
+            // Send commands
             Log.d(TAG, "Sending commands to printer...")
-            outputStream.write(zplCommands.toByteArray(Charsets.UTF_8))
+            outputStream.write(printCommands)
             outputStream.flush()
-            Log.d(TAG, " Commands sent successfully")
+            Log.d(TAG, "✓ Commands sent successfully")
 
-            // Pequeña pausa para asegurar que se envió todo
+            // Small pause to ensure everything was sent
             Thread.sleep(500)
 
-            Log.d(TAG, "========== printTestText END (success) ==========")
+            Log.d(TAG, "========== printText END (success) ==========")
             Result.success("Impresión exitosa")
 
         } catch (e: IOException) {
             Log.e(TAG, "IOException: ${e.message}", e)
-            Log.d(TAG, "========== printTestText END (error) ==========")
+            Log.d(TAG, "========== printText END (error) ==========")
             Result.failure(Exception("Error de conexión: ${e.message}"))
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException: ${e.message}", e)
-            Log.d(TAG, "========== printTestText END (error) ==========")
+            Log.d(TAG, "========== printText END (error) ==========")
             Result.failure(Exception("Permisos de Bluetooth no concedidos"))
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected exception: ${e.message}", e)
-            Log.d(TAG, "========== printTestText END (error) ==========")
+            Log.d(TAG, "========== printText END (error) ==========")
             Result.failure(Exception("Error inesperado: ${e.message}"))
         } finally {
-            // Cerrar recursos
+            // Close resources
             try {
                 outputStream?.close()
                 socket?.close()
@@ -191,39 +212,169 @@ class BluetoothPrinterService @Inject constructor(
         }
     }
 
+    // Legacy methods for backwards compatibility - use default Zebra ZQ511
+    @Deprecated("Use printTextByIp with printerModel parameter", ReplaceWith("printTextByIp(printerIp, text, PrinterModel.ZEBRA_ZQ511)"))
+    suspend fun printTestTextByIp(printerIp: String, text: String): Result<String> {
+        return printTextByIp(printerIp, text, PrinterModel.ZEBRA_ZQ511)
+    }
+
+    @Deprecated("Use printText with printerModel parameter", ReplaceWith("printText(deviceAddress, text, PrinterModel.ZEBRA_ZQ511)"))
+    suspend fun printTestText(deviceAddress: String, text: String): Result<String> {
+        return printText(deviceAddress, text, PrinterModel.ZEBRA_ZQ511)
+    }
+
     /**
-     * Genera comandos ZPL para imprimir una etiqueta de prueba
-     * Optimizado para Zebra ZQ511 (impresora térmica portátil 3" - 72mm)
-     * Configuración: 72mm ancho, estilo recibo de venta (tipo Walmart)
-     * Fuente compacta para facturas: ~42-48 caracteres por línea
+     * Tests printer connection to verify it's active and responding
+     * @param printerIp IP address of the printer (used if usePrinterIp is true)
+     * @param printerBluetoothAddress MAC address of Bluetooth device (used if usePrinterIp is false)
+     * @param usePrinterIp true for IP connection, false for Bluetooth
+     * @param printerModel The printer model to use
+     * @return Result with success or error message
      */
-    private fun buildZPLTestLabel(text: String): String {
-        // Dividir el texto en líneas
-        val lines = text.split("\n")
+    suspend fun testPrinterConnection(
+        printerIp: String,
+        printerBluetoothAddress: String,
+        usePrinterIp: Boolean,
+        printerModel: PrinterModel
+    ): Result<String> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "========== testPrinterConnection START ==========")
+        Log.d(TAG, "Mode: ${if (usePrinterIp) "IP" else "Bluetooth"}")
 
-        // Construir comandos ZPL para estilo recibo
-        // Configuración exacta para coincidir con virtual printer:
-        // - 48 caracteres por línea (72mm)
-        // - Fuente monospace tipo Courier 11pt
-        // - Line height 14pt
-        val commands = StringBuilder()
-        commands.append("^XA\n")  // Inicio de formato
-        commands.append("^CI28\n")  // Codificación UTF-8 para tildes y caracteres especiales
-        commands.append("^PW576\n")  // Ancho de impresión (576 dots para 72mm a 203 DPI)
-        commands.append("^LL${80 + (lines.size * 28)}\n")  // Largo dinámico según líneas
-        commands.append("^CF0,24\n")  // Fuente por defecto: altura 24 (100% tamaño base)
-
-        // Agregar cada línea con fuente explícita al 100%
-        var yPosition = 15
-        lines.forEach { line ->
-            if (line.isNotBlank()) {
-                commands.append("^FO3,$yPosition^A0N,24,12^FD$line^FS\n")  // 100%: altura 24, ancho 12
-                yPosition += 28  // Line spacing para 100%
+        // Validate configuration
+        if (usePrinterIp) {
+            if (printerIp.isBlank()) {
+                Log.e(TAG, "Printer IP is blank")
+                Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+                return@withContext Result.failure(
+                    Exception("La IP de la impresora no está configurada. Por favor, configure la impresora en Opciones Avanzadas.")
+                )
+            }
+        } else {
+            if (printerBluetoothAddress.isBlank()) {
+                Log.e(TAG, "Bluetooth address is blank")
+                Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+                return@withContext Result.failure(
+                    Exception("El dispositivo Bluetooth no está configurado. Por favor, configure la impresora en Opciones Avanzadas.")
+                )
             }
         }
 
-        commands.append("^XZ")  // Fin de formato
+        // Test connection based on mode
+        return@withContext if (usePrinterIp) {
+            testIpConnection(printerIp, printerModel)
+        } else {
+            testBluetoothConnection(printerBluetoothAddress, printerModel)
+        }
+    }
 
-        return commands.toString()
+    /**
+     * Tests IP printer connection
+     */
+    private suspend fun testIpConnection(
+        printerIp: String,
+        printerModel: PrinterModel
+    ): Result<String> = withContext(Dispatchers.IO) {
+        var socket: java.net.Socket? = null
+
+        try {
+            Log.d(TAG, "Testing IP connection to $printerIp:$PRINTER_PORT...")
+
+            // Create socket with timeout
+            socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(printerIp, PRINTER_PORT), 3000) // 3 seconds timeout
+
+            Log.d(TAG, "✓ Connection successful")
+            Log.d(TAG, "========== testPrinterConnection END (success) ==========")
+            Result.success("Impresora conectada correctamente")
+
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(TAG, "SocketTimeoutException: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("No se pudo conectar a la impresora. Tiempo de espera agotado.\nVerifique que la impresora esté encendida y conectada a la red."))
+        } catch (e: java.net.ConnectException) {
+            Log.e(TAG, "ConnectException: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("No se pudo conectar a la impresora en $printerIp.\nVerifique la IP en Opciones Avanzadas."))
+        } catch (e: IOException) {
+            Log.e(TAG, "IOException: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("Error de conexión con la impresora: ${e.message}"))
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected exception: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("Error inesperado al conectar con la impresora: ${e.message}"))
+        } finally {
+            try {
+                socket?.close()
+                Log.d(TAG, "Test socket closed")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error closing test socket: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Tests Bluetooth printer connection
+     */
+    private suspend fun testBluetoothConnection(
+        deviceAddress: String,
+        printerModel: PrinterModel
+    ): Result<String> = withContext(Dispatchers.IO) {
+        var socket: BluetoothSocket? = null
+
+        try {
+            Log.d(TAG, "Testing Bluetooth connection to $deviceAddress...")
+
+            // Get Bluetooth device
+            val device: BluetoothDevice? = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+            if (device == null) {
+                Log.e(TAG, "Bluetooth device not found")
+                return@withContext Result.failure(
+                    Exception("Dispositivo Bluetooth no encontrado.\nVerifique que el dispositivo esté emparejado.")
+                )
+            }
+
+            Log.d(TAG, "Device found: ${device.name ?: "Unknown"}")
+
+            // Create socket
+            socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+            Log.d(TAG, "Socket created")
+
+            // Cancel discovery to improve connection
+            try {
+                bluetoothAdapter?.cancelDiscovery()
+                Log.d(TAG, "Discovery cancelled")
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Could not cancel discovery (permission issue): ${e.message}")
+            }
+
+            // Connect with timeout (we'll rely on the default timeout)
+            Log.d(TAG, "Attempting connection...")
+            socket.connect()
+            Log.d(TAG, "✓ Connection successful")
+
+            Log.d(TAG, "========== testPrinterConnection END (success) ==========")
+            Result.success("Impresora Bluetooth conectada correctamente")
+
+        } catch (e: IOException) {
+            Log.e(TAG, "IOException: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("No se pudo conectar a la impresora Bluetooth.\nVerifique que esté encendida y en rango."))
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("Permisos de Bluetooth no concedidos.\nVerifique los permisos de la aplicación."))
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected exception: ${e.message}", e)
+            Log.d(TAG, "========== testPrinterConnection END (error) ==========")
+            Result.failure(Exception("Error inesperado al conectar con la impresora: ${e.message}"))
+        } finally {
+            try {
+                socket?.close()
+                Log.d(TAG, "Test socket closed")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error closing test socket: ${e.message}")
+            }
+        }
     }
 }

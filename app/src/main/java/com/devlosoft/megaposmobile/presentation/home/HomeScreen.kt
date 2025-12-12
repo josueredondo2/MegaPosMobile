@@ -59,9 +59,10 @@ fun HomeScreen(
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
 
-    // Set logout callback
+    // Set callbacks
     LaunchedEffect(Unit) {
         viewModel.setLogoutCallback(onLogout)
+        viewModel.setNavigateToBillingCallback(onNavigateToBilling)
     }
 
     // Todo Dialog
@@ -92,6 +93,20 @@ fun HomeScreen(
             dismissButton = {
                 TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissLogoutConfirmDialog) }) {
                     Text("No")
+                }
+            }
+        )
+    }
+
+    // Printer Error Dialog
+    state.printerError?.let { errorMessage ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissPrinterError) },
+            title = { Text(text = "Error de Impresora") },
+            text = { Text(text = errorMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissPrinterError) }) {
+                    Text("Aceptar")
                 }
             }
         )
@@ -202,8 +217,8 @@ fun HomeScreen(
                         icon = Icons.Default.AttachMoney,
                         title = "Facturación",
                         description = "Ingresa para facturar",
-                        enabled = state.isStationOpen,
-                        onClick = { onNavigateToBilling() }
+                        enabled = state.isStationOpen && !state.isCheckingPrinter,
+                        onClick = { viewModel.onEvent(HomeEvent.CheckPrinterAndNavigateToBilling) }
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))

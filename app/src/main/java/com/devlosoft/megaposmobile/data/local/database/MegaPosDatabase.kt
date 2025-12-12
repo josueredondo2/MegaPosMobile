@@ -18,9 +18,16 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Add printer model column
+        db.execSQL("ALTER TABLE server_config ADD COLUMN printerModel TEXT NOT NULL DEFAULT 'ZEBRA_ZQ511'")
+    }
+}
+
 @Database(
     entities = [ServerConfigEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {

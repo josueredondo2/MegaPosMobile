@@ -18,5 +18,7 @@ data class HomeState(
     val isClosingTerminal: Boolean = false,
     val closeTerminalError: String? = null,
     val showCloseTerminalSuccessDialog: Boolean = false,
-    val closeTerminalMessage: String = ""
+    val closeTerminalMessage: String = "",
+    val isCheckingPrinter: Boolean = false,
+    val printerError: String? = null
 )

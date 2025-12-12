@@ -2,11 +2,12 @@ package com.devlosoft.megaposmobile.presentation.advancedoptions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterManager
-import com.devlosoft.megaposmobile.core.util.BluetoothPrinterService
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
+import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,7 @@ import javax.inject.Inject
 class AdvancedOptionsViewModel @Inject constructor(
     private val serverConfigDao: ServerConfigDao,
     private val bluetoothPrinterManager: BluetoothPrinterManager,
-    private val bluetoothPrinterService: BluetoothPrinterService
+    private val printerManager: PrinterManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AdvancedOptionsState())
@@ -40,6 +41,9 @@ class AdvancedOptionsViewModel @Inject constructor(
             }
             is AdvancedOptionsEvent.PrinterIpChanged -> {
                 _state.update { it.copy(printerIp = event.printerIp) }
+            }
+            is AdvancedOptionsEvent.PrinterModelChanged -> {
+                _state.update { it.copy(printerModel = event.model) }
             }
             is AdvancedOptionsEvent.PrinterModeChanged -> {
                 _state.update { it.copy(usePrinterIp = event.useIp) }
@@ -81,6 +85,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                             hostname = config.serverName,
                             datafonUrl = config.datafonUrl,
                             printerIp = config.printerIp,
+                            printerModel = PrinterModel.fromString(config.printerModel),
                             usePrinterIp = config.usePrinterIp,
                             selectedBluetoothDevice = if (config.printerBluetoothAddress.isNotBlank()) {
                                 BluetoothPrinterDevice(
@@ -161,31 +166,6 @@ class AdvancedOptionsViewModel @Inject constructor(
                         }
                         return@launch
                     }
-
-                    // Intentar imprimir por IP
-                    val result = bluetoothPrinterService.printTestTextByIp(
-                        printerIp = _state.value.printerIp,
-                        text = "IMPRESORA CONECTADA\nCORRECTAMENTE AL\nSISTEMA MEGAPOS\nMOBILE"
-                    )
-
-                    result.fold(
-                        onSuccess = { message ->
-                            _state.update {
-                                it.copy(
-                                    error = "✓ $message - Revise la impresora",
-                                    isTestingPrinter = false
-                                )
-                            }
-                        },
-                        onFailure = { exception ->
-                            _state.update {
-                                it.copy(
-                                    error = "Error al imprimir: ${exception.message}",
-                                    isTestingPrinter = false
-                                )
-                            }
-                        }
-                    )
                 } else {
                     // Modo Bluetooth
                     val device = _state.value.selectedBluetoothDevice
@@ -198,33 +178,38 @@ class AdvancedOptionsViewModel @Inject constructor(
                         }
                         return@launch
                     }
-
-                    // Intentar imprimir
-                    val result = bluetoothPrinterService.printTestText(
-                        deviceAddress = device.address,
-                        //text = "IMPRESORA CONECTADA\nCORRECTAMENTE AL\nSISTEMA MEGAPOS\nMOBILE",
-                        text = "           Megasuper Paraiso            \n       CORPORACION MEGASUPER S.A.       \n            FACTURA ELECTRÓNICA             \n                CONTADO                 \n                                        \nCed:3-101-052164 Tel:                   \nConsecutivo:feltest0001            \nClave:50624011800310719551000100001010000000001123456782                                                  \nFactura:000000038 08/12/2025 12:14:20 a.\nTip. Doc.:*TIQUETE ELECTRÓNICO*         \nCliente:304720192 JOSUE_DE_JESUS REDONDO ARA\nCajero:JOSUE REDONDO ARAYA             i\nReferencia:023078520251207VE000000038  \n--------------------------------------------\nCant.     Descripción   P Unit. M. Total \n  4    ALKA SELTZER X12   2.240     8.960 D \n       DESC     15,08% 1.351,29         \n       PRECIO NETO: 7.609              \n  1    ALKA SELTZER X12   2.240     2.240   \n  1    FRESCO NATURAL 12    500       500   \n  1    TAMARINDO 500g     1.200     1.200  P\n--------------------------------------------\n  7   Art.  Subtotal     :    12.900\n            Descuento    :1351.25   \n                    \n\nCaja: 85    Total a Pagar:    11.549\n Articulos Patrocinadores:         1\n            USTED AHORRO :   135.125\n\n-----------------------------------------  \nTIPO IMP     PRECIO   IMPUESTO      TOTAL\nGR    1%   1,188.12      11.88   1,200.00\nGR    2%   9,655.64     193.11   9,848.75\nGR   13%     442.48      57.52     500.00\n-----------------------------------------\nTotal IVA: 262.52\n\n     =============================      \n* Exento/D Descuento/P Patrocina/E Exonerado\nEstimado Cliente, gracias por tu compra \nhoy, quedás participando de un Cash Back\npara redimir del lunes 06 al viernes 10 \nde enero, podes consultar el monto\nel día de mañana en:                    \n          puntos.megasuper.com          \n         Aplica restricciones.          \n                                        \n  MEGASUPER AHORRO TODOS LOS DIAS!!!!   \n          Servicio al Cliente           \n    Teléfonos:2246-0499/80063-42800     \n                                        \n   Cartago, Paraíso, Llanos de Santa    \n     Lucía, INTERIOR PLAZA PARAISO      \n                                        \n  Impuesto Al Valor Agregado Incluido   \n   Autorizado mediante resolución N°    \nMH-DGT-RES-0027-2024 del 13 de noviembre\n de 2024\n\n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n"
-                    )
-
-                    result.fold(
-                        onSuccess = { message ->
-                            _state.update {
-                                it.copy(
-                                    error = "✓ $message - Revise la impresora",
-                                    isTestingPrinter = false
-                                )
-                            }
-                        },
-                        onFailure = { exception ->
-                            _state.update {
-                                it.copy(
-                                    error = "Error al imprimir: ${exception.message}",
-                                    isTestingPrinter = false
-                                )
-                            }
-                        }
-                    )
                 }
+
+                // Text to print
+                val testText = "           Megasuper Paraiso            \n       CORPORACION MEGASUPER S.A.       \n            FACTURA ELECTRÓNICA             \n                CONTADO                 \n                                        \nCed:3-101-052164 Tel:                   \nConsecutivo:feltest0001            \nClave:50624011800310719551000100001010000000001123456782                                                  \nFactura:000000038 08/12/2025 12:14:20 a.\nTip. Doc.:*TIQUETE ELECTRÓNICO*         \nCliente:304720192 JOSUE_DE_JESUS REDONDO ARA\nCajero:JOSUE REDONDO ARAYA             i\nReferencia:023078520251207VE000000038  \n--------------------------------------------\nCant.     Descripción   P Unit. M. Total \n  4    ALKA SELTZER X12   2.240     8.960 D \n       DESC     15,08% 1.351,29         \n       PRECIO NETO: 7.609              \n  1    ALKA SELTZER X12   2.240     2.240   \n  1    FRESCO NATURAL 12    500       500   \n  1    TAMARINDO 500g     1.200     1.200  P\n--------------------------------------------\n  7   Art.  Subtotal     :    12.900\n            Descuento    :1351.25   \n                    \n\nCaja: 85    Total a Pagar:    11.549\n Articulos Patrocinadores:         1\n            USTED AHORRO :   135.125\n\n-----------------------------------------  \nTIPO IMP     PRECIO   IMPUESTO      TOTAL\nGR    1%   1,188.12      11.88   1,200.00\nGR    2%   9,655.64     193.11   9,848.75\nGR   13%     442.48      57.52     500.00\n-----------------------------------------\nTotal IVA: 262.52\n\n     =============================      \n* Exento/D Descuento/P Patrocina/E Exonerado\nEstimado Cliente, gracias por tu compra \nhoy, quedás participando de un Cash Back\npara redimir del lunes 06 al viernes 10 \nde enero, podes consultar el monto\nel día de mañana en:                    \n          puntos.megasuper.com          \n         Aplica restricciones.          \n                                        \n  MEGASUPER AHORRO TODOS LOS DIAS!!!!   \n          Servicio al Cliente           \n    Teléfonos:2246-0499/80063-42800     \n                                        \n   Cartago, Paraíso, Llanos de Santa    \n     Lucía, INTERIOR PLAZA PARAISO      \n                                        \n  Impuesto Al Valor Agregado Incluido   \n   Autorizado mediante resolución N°    \nMH-DGT-RES-0027-2024 del 13 de noviembre\n de 2024\n\n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n                                        \n"
+
+                // Print using PrinterManager with custom config
+                val result = printerManager.printTextWithConfig(
+                    text = testText,
+                    printerIp = _state.value.printerIp,
+                    bluetoothAddress = _state.value.selectedBluetoothDevice?.address ?: "",
+                    usePrinterIp = _state.value.usePrinterIp,
+                    printerModel = _state.value.printerModel
+                )
+
+                result.fold(
+                    onSuccess = { message ->
+                        _state.update {
+                            it.copy(
+                                error = "✓ $message - Revise la impresora",
+                                isTestingPrinter = false
+                            )
+                        }
+                    },
+                    onFailure = { exception ->
+                        _state.update {
+                            it.copy(
+                                error = "Error al imprimir: ${exception.message}",
+                                isTestingPrinter = false
+                            )
+                        }
+                    }
+                )
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
@@ -284,7 +269,8 @@ class AdvancedOptionsViewModel @Inject constructor(
                     printerIp = _state.value.printerIp,
                     printerBluetoothAddress = _state.value.selectedBluetoothDevice?.address ?: "",
                     printerBluetoothName = _state.value.selectedBluetoothDevice?.name ?: "",
-                    usePrinterIp = _state.value.usePrinterIp
+                    usePrinterIp = _state.value.usePrinterIp,
+                    printerModel = _state.value.printerModel.name
                 )
 
                 serverConfigDao.insertServerConfig(config)

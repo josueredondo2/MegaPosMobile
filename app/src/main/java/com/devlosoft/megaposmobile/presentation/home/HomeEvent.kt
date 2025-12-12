@@ -4,6 +4,8 @@ sealed class HomeEvent {
     data object OpenTerminal : HomeEvent()
     data object CloseTerminal : HomeEvent()
     data object Billing : HomeEvent()
+    data object CheckPrinterAndNavigateToBilling : HomeEvent()
+    data object DismissPrinterError : HomeEvent()
     data object DailyTransactions : HomeEvent()
     data object DismissDialog : HomeEvent()
     data object ToggleUserMenu : HomeEvent()

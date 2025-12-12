@@ -4,11 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.core.state.StationStatus
-import com.devlosoft.megaposmobile.core.util.BluetoothPrinterService
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
+import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
@@ -40,7 +41,7 @@ class ProcessViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val stationStatus: StationStatus,
     private val serverConfigDao: ServerConfigDao,
-    private val bluetoothPrinterService: BluetoothPrinterService
+    private val printerManager: PrinterManager
 ) : ViewModel() {
 
     companion object {
@@ -174,25 +175,11 @@ class ProcessViewModel @Inject constructor(
             val printText = document.printText
             Log.d(TAG, "Print text length: ${printText.length}")
 
-            val result = if (config.usePrinterIp) {
-                // Print via IP
-                val printerIp = config.printerIp
-                if (printerIp.isBlank()) {
-                    Log.e(TAG, "Printer IP not configured")
-                    return
-                }
-                Log.d(TAG, "Printing via IP: $printerIp")
-                bluetoothPrinterService.printTestTextByIp(printerIp, printText)
-            } else {
-                // Print via Bluetooth
-                val bluetoothAddress = config.printerBluetoothAddress
-                if (bluetoothAddress.isBlank()) {
-                    Log.e(TAG, "Bluetooth printer not configured")
-                    return
-                }
-                Log.d(TAG, "Printing via Bluetooth: $bluetoothAddress")
-                bluetoothPrinterService.printTestText(bluetoothAddress, printText)
-            }
+            val printerModel = PrinterModel.fromString(config.printerModel)
+            Log.d(TAG, "Using printer model: ${printerModel.displayName}")
+
+            // Print using PrinterManager (handles both IP and Bluetooth internally)
+            val result = printerManager.printText(printText)
 
             result.fold(
                 onSuccess = { message ->

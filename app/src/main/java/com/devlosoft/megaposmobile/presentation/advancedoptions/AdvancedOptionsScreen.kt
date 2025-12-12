@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
+import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -227,6 +228,17 @@ fun AdvancedOptionsScreen(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black,
                         modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Printer Model Dropdown
+                    PrinterModelSelector(
+                        selectedModel = state.printerModel,
+                        onModelSelected = { model ->
+                            viewModel.onEvent(AdvancedOptionsEvent.PrinterModelChanged(model))
+                        },
+                        enabled = !state.isLoading
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
@@ -505,6 +517,75 @@ private fun BluetoothPrinterSelector(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrinterModelSelector(
+    selectedModel: PrinterModel,
+    onModelSelected: (PrinterModel) -> Unit,
+    enabled: Boolean
+) {
+    val dimensions = LocalDimensions.current
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Modelo de Impresora",
+            fontSize = dimensions.fontSizeMedium,
+            color = Color.Black,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled) { expanded = true }
+        ) {
+            OutlinedTextField(
+                value = selectedModel.displayName,
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false,
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Dropdown"
+                    )
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MegaSuperRed,
+                    cursorColor = MegaSuperRed,
+                    disabledBorderColor = Color.Gray,
+                    disabledTextColor = Color.Black
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = dimensions.fontSizeMedium
+                )
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            PrinterModel.entries.forEach { model ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = model.displayName,
+                            fontWeight = if (model == selectedModel) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onModelSelected(model)
+                        expanded = false
+                    }
+                )
             }
         }
     }

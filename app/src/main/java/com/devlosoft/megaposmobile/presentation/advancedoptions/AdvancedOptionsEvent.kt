@@ -1,12 +1,14 @@
 package com.devlosoft.megaposmobile.presentation.advancedoptions
 
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
+import com.devlosoft.megaposmobile.domain.model.PrinterModel
 
 sealed class AdvancedOptionsEvent {
     // Field changes
     data class HostnameChanged(val hostname: String) : AdvancedOptionsEvent()
     data class DatafonUrlChanged(val datafonUrl: String) : AdvancedOptionsEvent()
     data class PrinterIpChanged(val printerIp: String) : AdvancedOptionsEvent()
+    data class PrinterModelChanged(val model: PrinterModel) : AdvancedOptionsEvent()
 
     // Printer mode
     data class PrinterModeChanged(val useIp: Boolean) : AdvancedOptionsEvent()
