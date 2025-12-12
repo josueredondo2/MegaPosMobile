@@ -60,8 +60,9 @@ class AuthRepositoryImpl @Inject constructor(
             }
         } catch (e: HttpException) {
             emit(Resource.Error("Error de servidor: ${e.message()}"))
-        } catch (e: IOException) {
-            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: IOException ) {
+
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."+e.message))
         } catch (e: Exception) {
             emit(Resource.Error("Error inesperado: ${e.localizedMessage}"))
         }

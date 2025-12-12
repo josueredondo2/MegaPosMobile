@@ -83,11 +83,6 @@ class ConfigurationViewModel @Inject constructor(
             return
         }
 
-        if (currentState.hostname.isBlank()) {
-            _state.update { it.copy(error = "El hostname es requerido") }
-            return
-        }
-
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             try {

@@ -134,8 +134,12 @@ class BluetoothPrinterService @Inject constructor(
             Log.d(TAG, "Socket created")
 
             // Cancelar discovery para mejorar conexión
-            bluetoothAdapter?.cancelDiscovery()
-            Log.d(TAG, "Discovery cancelled")
+            try {
+                bluetoothAdapter?.cancelDiscovery()
+                Log.d(TAG, "Discovery cancelled")
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Could not cancel discovery (permission issue): ${e.message}")
+            }
 
             // Conectar
             Log.d(TAG, "Connecting to device...")

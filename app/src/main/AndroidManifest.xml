@@ -10,9 +10,10 @@
 
     <!-- Bluetooth Android 12+ -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-        android:maxSdkVersion="32"
+        android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
+        tools:targetApi="s" />
 
     <!-- Bluetooth Android 11- -->
     <uses-permission android:name="android.permission.BLUETOOTH"

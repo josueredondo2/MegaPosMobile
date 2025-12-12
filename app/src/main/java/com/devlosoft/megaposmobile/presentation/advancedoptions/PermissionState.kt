@@ -48,7 +48,11 @@ fun rememberBluetoothPermissionState(
 
 private fun checkBluetoothPermissions(context: android.content.Context): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Android 12+
+        // Android 12+ - Need both BLUETOOTH_SCAN and BLUETOOTH_CONNECT
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.BLUETOOTH_SCAN
+        ) == PackageManager.PERMISSION_GRANTED &&
         ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.BLUETOOTH_CONNECT

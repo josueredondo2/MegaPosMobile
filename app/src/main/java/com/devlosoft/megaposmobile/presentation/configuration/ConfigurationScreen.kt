@@ -160,6 +160,46 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
 
+                    // Campo Host Name
+                    OutlinedTextField(
+                        value = state.hostname,
+                        onValueChange = { viewModel.onEvent(ConfigurationEvent.HostnameChanged(it)) },
+                        label = {
+                            Text(
+                                text = "Host Name",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        placeholder = {
+                            Text(
+                                text = "android-pos-01",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(dimensions.textFieldHeight),
+                        enabled = !state.isLoading,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = dimensions.fontSizeMedium
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MegaSuperRed,
+                            focusedLabelColor = MegaSuperRed,
+                            cursorColor = MegaSuperRed
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
                     // Android ID Label (Read-only)
                     Column(
                         modifier = Modifier.fillMaxWidth()
