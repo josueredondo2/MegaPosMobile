@@ -30,5 +30,10 @@ data class BillingState(
 
     // Navigation state
     val shouldNavigateToTransaction: Boolean = false,
-    val shouldNavigateBackToBilling: Boolean = false
+    val shouldNavigateBackToBilling: Boolean = false,
+
+    // Recovery check state
+    val isCheckingRecovery: Boolean = false,
+    val recoveryCheckError: String? = null,
+    val hasRecoverableTransaction: Boolean = false
 )

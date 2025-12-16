@@ -10,6 +10,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
+import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -171,6 +172,36 @@ class BillingRepositoryImpl @Inject constructor(
                     )
                 } ?: emptyList()
                 emit(Resource.Success(documents))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun canRecoverTransaction(
+        sessionId: String,
+        workstationId: String
+    ): Flow<Resource<TransactionRecoveryResult>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.canRecoverTransaction(
+                sessionId = sessionId,
+                workstationId = workstationId
+            )
+            if (response.isSuccessful) {
+                val result = response.body()?.toDomain()
+                if (result != null) {
+                    emit(Resource.Success(result))
+                } else {
+                    emit(Resource.Error("Respuesta vacía del servidor"))
+                }
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

@@ -85,8 +85,48 @@ fun BillingScreen(
         )
     }
 
+    // Error dialog for recovery check
+    state.recoveryCheckError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(BillingEvent.DismissRecoveryCheckError) },
+            title = { Text("Error") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(BillingEvent.DismissRecoveryCheckError) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
+            // Loading overlay for recovery check
+            if (state.isCheckingRecovery) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(
+                            color = MegaSuperRed,
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Verificando transacciones...",
+                            fontSize = dimensions.fontSizeMedium,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                return@Scaffold
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()

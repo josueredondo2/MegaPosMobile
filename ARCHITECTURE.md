@@ -2,7 +2,7 @@
 
 ## 🏗️ Arquitectura: Clean Architecture + MVVM
 
-He implementado una arquitectura en 3 capas que separa responsabilidades y hace el código mantenible y testeable:
+El proyecto implementa una arquitectura en 3 capas que separa responsabilidades y hace el código mantenible y testeable:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -10,6 +10,7 @@ He implementado una arquitectura en 3 capas que separa responsabilidades y hace 
 │  - Jetpack Compose (UI)                         │
 │  - ViewModels (Lógica de UI)                    │
 │  - States & Events                              │
+│  - Responsive Design System                     │
 └────────────┬────────────────────────────────────┘
              │ uses
              ↓
@@ -68,7 +69,8 @@ class LoginViewModel @Inject constructor(
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
-    // UI usando state
+    val dimensions = LocalDimensions.current // Responsive design
+    // UI usando state y dimensions
 }
 ```
 
@@ -165,77 +167,435 @@ class AuthRepositoryImpl @Inject constructor(
 
 ---
 
-## 🔧 Inyección de Dependencias con Hilt
+## 🎨 Sistema de Diseño Responsive
 
-Hilt maneja la creación de objetos automáticamente.
+**Ubicación**: `ui/theme/Dimensions.kt`
 
-### ¿Cómo funciona?
+El proyecto implementa un sistema de diseño adaptativo que detecta el tamaño de la pantalla y ajusta automáticamente dimensiones, fuentes, y espaciado.
+
+### Tipos de Dispositivo
+
+| Tipo | Ancho de Pantalla | Características |
+|------|-------------------|-----------------|
+| **PHONE** | < 600dp | Teléfonos 5.5" - Dimensiones estándar |
+| **PHABLET** | 600-839dp | Tablets pequeñas - Dimensiones medianas |
+| **TABLET** | >= 840dp | Tablets 10.1" - Dimensiones grandes, contenido centrado |
+
+### Uso en Pantallas
 
 ```kotlin
-// 1. Marca la Application
-@HiltAndroidApp
-class MegaPosApplication : Application()
+@Composable
+fun MyScreen() {
+    val dimensions = LocalDimensions.current
 
-// 2. Marca Activities
-@AndroidEntryPoint
-class MainActivity : ComponentActivity()
+    Column(
+        modifier = Modifier
+            .widthIn(max = dimensions.maxContentWidth) // Ancho máximo en tablets
+            .padding(horizontal = dimensions.horizontalPadding)
+    ) {
+        Text(
+            text = "Título",
+            fontSize = dimensions.fontSizeTitle
+        )
 
-// 3. Define módulos
-@Module
-@InstallIn(SingletonComponent::class)
-object NetworkModule {
-    @Provides
-    @Singleton
-    fun provideRetrofit(): Retrofit = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL)
-        .build()
-
-    @Provides
-    @Singleton
-    fun provideAuthApi(retrofit: Retrofit): AuthApi =
-        retrofit.create(AuthApi::class.java)
+        Button(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight)
+        ) {
+            Text(
+                text = "Acción",
+                fontSize = dimensions.fontSizeExtraLarge
+            )
+        }
+    }
 }
-
-// 4. Inyecta donde necesites
-@HiltViewModel
-class LoginViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase  // Hilt lo provee automáticamente
-) : ViewModel()
 ```
 
-**Ventajas:**
-- No más `new` manual
-- Fácil cambiar implementaciones
-- Ciclos de vida manejados automáticamente
-- Testing más fácil (puedes inyectar mocks)
+### Dimensiones Adaptativas
+
+```kotlin
+data class Dimensions(
+    // Padding
+    val paddingSmall: Dp,
+    val paddingMedium: Dp,
+    val paddingLarge: Dp,
+
+    // Content
+    val maxContentWidth: Dp,      // Infinity en phones, 600dp en tablets
+    val horizontalPadding: Dp,     // 32dp phones, 64dp tablets
+
+    // Spacing
+    val spacerSmall: Dp,
+    val spacerMedium: Dp,
+    val spacerLarge: Dp,
+
+    // Font sizes
+    val fontSizeSmall: TextUnit,   // 12sp phones, 16sp tablets
+    val fontSizeMedium: TextUnit,  // 14sp phones, 18sp tablets
+    val fontSizeTitle: TextUnit,   // 24sp phones, 36sp tablets
+    val fontSizeHeader: TextUnit,  // 28sp phones, 40sp tablets
+
+    // Components
+    val buttonHeight: Dp,          // 56dp phones, 64dp tablets
+    val textFieldHeight: Dp,
+    val iconSizeSmall: Dp,
+    val headerHeight: Dp,          // 80dp phones, 120dp tablets
+
+    // Logo
+    val logoFontSize: TextUnit,
+    val sloganFontSize: TextUnit
+)
+```
 
 ---
 
-## 🔄 Flujo Completo de Login
+## 🎨 Sistema de Temas y Colores
+
+**Ubicación**: `ui/theme/`
+
+### Colores de MegaSuper
+
+```kotlin
+// Color.kt
+val MegaSuperRed = Color(0xFFC62828)
+val MegaSuperRedDark = Color(0xFFB71C1C)
+val MegaSuperRedLight = Color(0xFFEF5350)
+val MegaSuperWhite = Color(0xFFFFFFFF)
+val MegaSuperGray = Color(0xFF757575)
+```
+
+### Tema de la App
+
+```kotlin
+// Theme.kt
+private val MegaSuperColorScheme = lightColorScheme(
+    primary = MegaSuperRed,
+    onPrimary = MegaSuperWhite,
+    secondary = MegaSuperRedLight,
+    tertiary = MegaSuperRedDark
+)
+
+@Composable
+fun MegaPosMobileTheme(content: @Composable () -> Unit) {
+    ProvideDimensions {  // Inyecta el sistema responsive
+        MaterialTheme(
+            colorScheme = MegaSuperColorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
+}
+```
+
+---
+
+## 🗄️ Base de Datos Local (Room)
+
+**Ubicación**: `data/local/`
+
+### Configuración del Servidor
+
+El proyecto guarda la configuración del servidor en la base de datos local para permitir configuración dinámica.
+
+```kotlin
+// Entity
+@Entity(tableName = "server_config")
+data class ServerConfigEntity(
+    @PrimaryKey val id: Int = 1,
+    val serverUrl: String,       // URL del API
+    val serverName: String,       // Hostname del dispositivo
+    val isActive: Boolean = true,
+    val lastConnected: Long? = null
+)
+
+// DAO
+@Dao
+interface ServerConfigDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertServerConfig(config: ServerConfigEntity)
+
+    @Query("SELECT * FROM server_config WHERE isActive = 1 LIMIT 1")
+    fun getActiveServerConfig(): Flow<ServerConfigEntity?>
+
+    @Query("SELECT * FROM server_config WHERE isActive = 1 LIMIT 1")
+    suspend fun getActiveServerConfigSync(): ServerConfigEntity?
+}
+
+// Database
+@Database(
+    entities = [ServerConfigEntity::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class MegaPosDatabase : RoomDatabase() {
+    abstract fun serverConfigDao(): ServerConfigDao
+}
+```
+
+---
+
+## 🔧 Inyección de Dependencias con Hilt
+
+### Configuración de Red con URL Dinámica
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideAuthInterceptor(
+        sessionManager: SessionManager,
+        serverConfigDao: ServerConfigDao
+    ): AuthInterceptor {
+        return AuthInterceptor(sessionManager, serverConfigDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        authInterceptor: AuthInterceptor
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL) // Base URL placeholder
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+}
+```
+
+---
+
+## 🔐 AuthInterceptor Dinámico
+
+**Ubicación**: `data/remote/interceptor/AuthInterceptor.kt`
+
+El interceptor lee la configuración de la base de datos en cada request para usar la URL y hostname configurados.
+
+```kotlin
+class AuthInterceptor @Inject constructor(
+    private val sessionManager: SessionManager,
+    private val serverConfigDao: ServerConfigDao
+) : Interceptor {
+
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val originalRequest = chain.request()
+
+        // Obtener configuración de la base de datos
+        val serverConfig = runBlocking {
+            serverConfigDao.getActiveServerConfigSync()
+        } ?: throw IOException("Configuración del servidor no encontrada")
+
+        // Obtener hostname desde la DB
+        val hostname = serverConfig.serverName.takeIf { it.isNotBlank() }
+            ?: throw IOException("Hostname no configurado")
+
+        // Construir nueva URL con la configuración de la DB
+        val configuredBaseUrl = serverConfig.serverUrl.toHttpUrlOrNull()
+            ?: throw IOException("URL del servidor no configurada")
+
+        val newUrl = originalRequest.url.newBuilder()
+            .scheme(configuredBaseUrl.scheme)
+            .host(configuredBaseUrl.host)
+            .port(configuredBaseUrl.port)
+            .build()
+
+        // Para login: solo hostname
+        if (newRequest.url.encodedPath.endsWith("login")) {
+            return chain.proceed(
+                newRequest.newBuilder()
+                    .url(newUrl)
+                    .header("x-Hostname", hostname)
+                    .build()
+            )
+        }
+
+        // Para otros endpoints: token + hostname
+        val token = runBlocking { sessionManager.getAccessToken().first() }
+
+        return chain.proceed(
+            newRequest.newBuilder()
+                .url(newUrl)
+                .header("Authorization", "Bearer $token")
+                .header("x-Hostname", hostname)
+                .build()
+        )
+    }
+}
+```
+
+**Ventajas:**
+- ✅ URL configurable sin recompilar la app
+- ✅ Hostname personalizado por dispositivo
+- ✅ Sin valores hardcodeados
+- ✅ Errores claros si falta configuración
+
+---
+
+## 🔄 Flujo Completo de la App
+
+### 1. Primera Vez (Sin Configuración)
 
 ```
-1. Usuario toca "Login"
+1. App inicia
+   ↓
+2. AuthInterceptor intenta obtener config → null
+   ↓
+3. Usuario ve LoginScreen
+   ↓
+4. Usuario toca "Configuración"
+   ↓
+5. Navega a ConfigurationScreen
+   ↓
+6. Usuario ingresa:
+   - URL: http://192.168.1.100:6060
+   - Hostname: android-pos-01
+   ↓
+7. ConfigurationViewModel → serverConfigDao.insertServerConfig()
+   ↓
+8. Configuración guardada en Room
+   ↓
+9. Usuario regresa a LoginScreen
+   ↓
+10. Ahora puede hacer login
+```
+
+### 2. Login Normal (Con Configuración)
+
+```
+1. Usuario ingresa código y contraseña
    ↓
 2. LoginScreen → viewModel.onEvent(LoginEvent.Login)
    ↓
 3. LoginViewModel → loginUseCase(code, password)
    ↓
-4. LoginUseCase → authRepository.login(code, password)
+4. LoginUseCase → authRepository.login()
    ↓
-5. AuthRepositoryImpl → authApi.login(LoginRequestDto)
+5. AuthRepositoryImpl → authApi.login()
    ↓
-6. Retrofit → HTTP POST /pos-api/v1/login
+6. AuthInterceptor intercepta request:
+   - Lee serverConfig de Room DB
+   - Reemplaza URL: http://192.168.1.100:6060/pos-api/v1/login
+   - Agrega header: x-Hostname: android-pos-01
    ↓
-7. Backend responde → {"accessToken": "jwt..."}
+7. Retrofit → HTTP POST a servidor configurado
    ↓
-8. AuthRepositoryImpl → sessionManager.saveSession(token)
+8. Backend responde → {"accessToken": "jwt..."}
    ↓
-9. AuthRepositoryImpl → emit(Resource.Success(token))
+9. AuthRepositoryImpl → sessionManager.saveSession(token)
    ↓
 10. LoginViewModel → _state.update { isLoginSuccessful = true }
    ↓
-11. LoginScreen → onLoginSuccess() → navController.navigate()
+11. LoginScreen → navController.navigate(Screen.Home)
 ```
+
+---
+
+## 📱 Pantallas del Proyecto
+
+### 1. ConfigurationScreen
+
+**Ubicación**: `presentation/configuration/`
+
+Pantalla para configurar la URL del servidor y el hostname del dispositivo.
+
+```kotlin
+@Composable
+fun ConfigurationScreen(
+    viewModel: ConfigurationViewModel = hiltViewModel(),
+    onBack: () -> Unit
+) {
+    val state by viewModel.state.collectAsState()
+    val dimensions = LocalDimensions.current
+
+    Column {
+        // Header rojo con logo
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MegaSuperRed)
+                .height(dimensions.headerHeight)
+        ) {
+            Row {
+                Image(
+                    painter = painterResource(R.drawable.logo_megasuper),
+                    modifier = Modifier.height(dimensions.headerHeight * 0.6f)
+                )
+                Text("Version: 1.0", color = MegaSuperWhite)
+            }
+        }
+
+        // Campos de configuración
+        OutlinedTextField(
+            value = state.serverUrl,
+            onValueChange = { viewModel.onEvent(ConfigurationEvent.ServerUrlChanged(it)) },
+            label = { Text("Dirección POS API") }
+        )
+
+        OutlinedTextField(
+            value = state.hostname,
+            onValueChange = { viewModel.onEvent(ConfigurationEvent.HostnameChanged(it)) },
+            label = { Text("Host Name") }
+        )
+
+        Button(onClick = { viewModel.onEvent(ConfigurationEvent.Save) }) {
+            Text("Guardar")
+        }
+    }
+}
+```
+
+**State:**
+```kotlin
+data class ConfigurationState(
+    val serverUrl: String = "",
+    val hostname: String = "",
+    val isLoading: Boolean = false,
+    val isSaved: Boolean = false,
+    val error: String? = null
+)
+```
+
+**Events:**
+```kotlin
+sealed class ConfigurationEvent {
+    data class ServerUrlChanged(val url: String) : ConfigurationEvent()
+    data class HostnameChanged(val hostname: String) : ConfigurationEvent()
+    data object Save : ConfigurationEvent()
+    data object ClearError : ConfigurationEvent()
+}
+```
+
+### 2. LoginScreen
+
+**Ubicación**: `presentation/login/`
+
+Pantalla de inicio de sesión con botón de configuración.
+
+**Características:**
+- Header rojo con logo de MegaSuper
+- Campos de código de usuario y contraseña
+- Botón de login
+- Botón de configuración
+- Diseño responsive
+
+### 3. HomeScreen
+
+**Ubicación**: `presentation/home/`
+
+Pantalla principal después del login (pendiente de implementar funcionalidades).
 
 ---
 
@@ -249,20 +609,17 @@ sealed class Resource<T> {
 }
 ```
 
-**Por qué es útil:**
+**Uso:**
 ```kotlin
 loginUseCase(code, password).collect { result ->
     when (result) {
         is Resource.Loading -> {
-            // Mostrar spinner
             _state.update { it.copy(isLoading = true) }
         }
         is Resource.Success -> {
-            // Navegar
             _state.update { it.copy(isLoginSuccessful = true) }
         }
         is Resource.Error -> {
-            // Mostrar error
             _state.update { it.copy(error = result.message) }
         }
     }
@@ -271,153 +628,144 @@ loginUseCase(code, password).collect { result ->
 
 ---
 
-## 📱 Componentes Clave del Proyecto
+## 📁 Estructura de Archivos del Proyecto
 
-### 1. **SessionManager** (DataStore)
-Guarda datos de sesión persistentes:
-```kotlin
-sessionManager.saveSession(accessToken = "jwt...")
-sessionManager.isLoggedIn().collect { isLoggedIn -> }
-sessionManager.clearSession()
 ```
-
-### 2. **AuthInterceptor** (OkHttp)
-Agrega automáticamente el token a las peticiones:
-```kotlin
-class AuthInterceptor @Inject constructor(
-    private val sessionManager: SessionManager
-) : Interceptor {
-    override fun intercept(chain: Chain): Response {
-        val token = runBlocking { sessionManager.getAccessToken().first() }
-        val request = chain.request().newBuilder()
-            .header("Authorization", "Bearer $token")
-            .build()
-        return chain.proceed(request)
-    }
-}
-```
-
-### 3. **Navigation** (Compose)
-```kotlin
-NavHost(navController, startDestination = Screen.Login.route) {
-    composable(Screen.Login.route) {
-        LoginScreen(onLoginSuccess = {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Login.route) { inclusive = true }
-            }
-        })
-    }
-}
+app/src/main/
+├── java/com/devlosoft/megaposmobile/
+│   ├── core/
+│   │   └── common/
+│   │       └── Constants.kt
+│   ├── data/
+│   │   ├── local/
+│   │   │   ├── dao/
+│   │   │   │   └── ServerConfigDao.kt
+│   │   │   ├── database/
+│   │   │   │   └── MegaPosDatabase.kt
+│   │   │   ├── entity/
+│   │   │   │   └── ServerConfigEntity.kt
+│   │   │   └── preferences/
+│   │   │       └── SessionManager.kt
+│   │   ├── remote/
+│   │   │   ├── api/
+│   │   │   │   └── AuthApi.kt
+│   │   │   ├── dto/
+│   │   │   │   ├── LoginRequestDto.kt
+│   │   │   │   └── LoginResponseDto.kt
+│   │   │   └── interceptor/
+│   │   │       └── AuthInterceptor.kt
+│   │   └── repository/
+│   │       └── AuthRepositoryImpl.kt
+│   ├── di/
+│   │   ├── DatabaseModule.kt
+│   │   ├── NetworkModule.kt
+│   │   └── RepositoryModule.kt
+│   ├── domain/
+│   │   ├── model/
+│   │   │   └── Token.kt
+│   │   ├── repository/
+│   │   │   └── AuthRepository.kt
+│   │   └── usecase/
+│   │       └── LoginUseCase.kt
+│   ├── presentation/
+│   │   ├── configuration/
+│   │   │   ├── ConfigurationEvent.kt
+│   │   │   ├── ConfigurationScreen.kt
+│   │   │   ├── ConfigurationState.kt
+│   │   │   └── ConfigurationViewModel.kt
+│   │   ├── login/
+│   │   │   ├── LoginEvent.kt
+│   │   │   ├── LoginScreen.kt
+│   │   │   ├── LoginState.kt
+│   │   │   └── LoginViewModel.kt
+│   │   ├── home/
+│   │   │   └── HomeScreen.kt
+│   │   └── navigation/
+│   │       ├── NavGraph.kt
+│   │       └── Screen.kt
+│   ├── ui/
+│   │   └── theme/
+│   │       ├── Color.kt
+│   │       ├── Dimensions.kt
+│   │       ├── Theme.kt
+│   │       └── Type.kt
+│   └── MainActivity.kt
+└── res/
+    └── drawable/
+        └── logo_megasuper.png  (tu logo aquí)
 ```
 
 ---
 
-## 🚀 Cómo Agregar un Nuevo Endpoint
+## 🚀 Cómo Agregar una Nueva Pantalla
 
-Ejemplo: **Buscar Cliente**
+### Ejemplo: Pantalla de Búsqueda de Clientes
 
-### Paso 1: DTO (Data Layer)
+#### Paso 1: Crear State & Events
+
 ```kotlin
-// data/remote/dto/CustomerDto.kt
-data class CustomerDto(
-    @SerializedName("partyId") val partyId: Int,
-    @SerializedName("name") val name: String
-) {
-    fun toDomain() = Customer(partyId, name)
-}
-```
-
-### Paso 2: Model (Domain Layer)
-```kotlin
-// domain/model/Customer.kt
-data class Customer(
-    val partyId: Int,
-    val name: String
+// presentation/customer/CustomerState.kt
+data class CustomerState(
+    val searchId: String = "",
+    val customers: List<Customer> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
-```
 
-### Paso 3: API Interface
-```kotlin
-// data/remote/api/CustomerApi.kt
-interface CustomerApi {
-    @GET("customer/{identification}")
-    suspend fun getCustomer(@Path("identification") id: String): Response<List<CustomerDto>>
+// presentation/customer/CustomerEvent.kt
+sealed class CustomerEvent {
+    data class SearchIdChanged(val id: String) : CustomerEvent()
+    data object Search : CustomerEvent()
+    data object ClearError : CustomerEvent()
 }
 ```
 
-### Paso 4: Repository Interface (Domain)
-```kotlin
-// domain/repository/CustomerRepository.kt
-interface CustomerRepository {
-    suspend fun getCustomer(id: String): Flow<Resource<List<Customer>>>
-}
-```
+#### Paso 2: Crear ViewModel
 
-### Paso 5: Repository Implementation (Data)
 ```kotlin
-// data/repository/CustomerRepositoryImpl.kt
-class CustomerRepositoryImpl @Inject constructor(
-    private val api: CustomerApi
-) : CustomerRepository {
-    override suspend fun getCustomer(id: String) = flow {
-        emit(Resource.Loading())
-        try {
-            val response = api.getCustomer(id)
-            if (response.isSuccessful) {
-                emit(Resource.Success(response.body()!!.map { it.toDomain() }))
-            } else {
-                emit(Resource.Error("Error"))
-            }
-        } catch (e: IOException) {
-            emit(Resource.Error("Sin conexión"))
-        }
-    }
-}
-```
-
-### Paso 6: Use Case
-```kotlin
-// domain/usecase/GetCustomerUseCase.kt
-class GetCustomerUseCase @Inject constructor(
-    private val repository: CustomerRepository
-) {
-    suspend operator fun invoke(id: String): Flow<Resource<List<Customer>>> {
-        if (id.isBlank()) return flow { emit(Resource.Error("ID requerido")) }
-        return repository.getCustomer(id)
-    }
-}
-```
-
-### Paso 7: Registrar en Hilt
-```kotlin
-// di/NetworkModule.kt
-@Provides
-@Singleton
-fun provideCustomerApi(retrofit: Retrofit): CustomerApi =
-    retrofit.create(CustomerApi::class.java)
-
-// di/RepositoryModule.kt
-@Binds
-@Singleton
-abstract fun bindCustomerRepository(impl: CustomerRepositoryImpl): CustomerRepository
-```
-
-### Paso 8: ViewModel
-```kotlin
+// presentation/customer/CustomerViewModel.kt
 @HiltViewModel
 class CustomerViewModel @Inject constructor(
     private val getCustomerUseCase: GetCustomerUseCase
 ) : ViewModel() {
     private val _state = MutableStateFlow(CustomerState())
-    val state = _state.asStateFlow()
+    val state: StateFlow<CustomerState> = _state.asStateFlow()
 
-    fun searchCustomer(id: String) {
+    fun onEvent(event: CustomerEvent) {
+        when (event) {
+            is CustomerEvent.SearchIdChanged -> {
+                _state.update { it.copy(searchId = event.id) }
+            }
+            is CustomerEvent.Search -> searchCustomer()
+            is CustomerEvent.ClearError -> {
+                _state.update { it.copy(error = null) }
+            }
+        }
+    }
+
+    private fun searchCustomer() {
         viewModelScope.launch {
-            getCustomerUseCase(id).collect { result ->
+            getCustomerUseCase(_state.value.searchId).collect { result ->
                 when (result) {
-                    is Resource.Loading -> _state.update { it.copy(isLoading = true) }
-                    is Resource.Success -> _state.update { it.copy(customers = result.data!!) }
-                    is Resource.Error -> _state.update { it.copy(error = result.message) }
+                    is Resource.Loading -> {
+                        _state.update { it.copy(isLoading = true) }
+                    }
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(
+                                customers = result.data ?: emptyList(),
+                                isLoading = false
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                error = result.message,
+                                isLoading = false
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -425,66 +773,217 @@ class CustomerViewModel @Inject constructor(
 }
 ```
 
-### Paso 9: Screen
-```kotlin
-@Composable
-fun CustomerScreen(viewModel: CustomerViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsState()
+#### Paso 3: Crear Screen
 
-    Column {
-        Button(onClick = { viewModel.searchCustomer("123") }) {
-            Text("Buscar")
+```kotlin
+// presentation/customer/CustomerScreen.kt
+@Composable
+fun CustomerScreen(
+    viewModel: CustomerViewModel = hiltViewModel(),
+    onCustomerSelected: (Customer) -> Unit
+) {
+    val state by viewModel.state.collectAsState()
+    val dimensions = LocalDimensions.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .widthIn(max = dimensions.maxContentWidth)
+            .padding(horizontal = dimensions.horizontalPadding)
+    ) {
+        OutlinedTextField(
+            value = state.searchId,
+            onValueChange = { viewModel.onEvent(CustomerEvent.SearchIdChanged(it)) },
+            label = { Text("ID Cliente", fontSize = dimensions.fontSizeMedium) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.textFieldHeight)
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+        Button(
+            onClick = { viewModel.onEvent(CustomerEvent.Search) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight),
+            enabled = !state.isLoading
+        ) {
+            Text("Buscar", fontSize = dimensions.fontSizeExtraLarge)
         }
 
-        if (state.isLoading) CircularProgressIndicator()
+        if (state.isLoading) {
+            CircularProgressIndicator()
+        }
 
-        state.customers.forEach { customer ->
-            Text(customer.name)
+        LazyColumn {
+            items(state.customers) { customer ->
+                CustomerItem(
+                    customer = customer,
+                    onClick = { onCustomerSelected(customer) }
+                )
+            }
         }
     }
 }
 ```
 
----
+#### Paso 4: Agregar a Navigation
 
-## 🎓 Conceptos Importantes para el Futuro
-
-### 1. **Flow vs LiveData**
-He usado **Flow** (más moderno):
-- Parte de Kotlin Coroutines
-- Más potente (operadores como map, filter)
-- Mejor para arquitectura limpia
-
-### 2. **suspend functions**
 ```kotlin
-suspend fun login() // Función que puede suspenderse sin bloquear
-```
-- Solo se pueden llamar desde coroutines
-- `viewModelScope.launch { }` crea un coroutine
+// navigation/Screen.kt
+sealed class Screen(val route: String) {
+    data object Login : Screen("login")
+    data object Configuration : Screen("configuration")
+    data object Customer : Screen("customer")  // Nueva
+}
 
-### 3. **StateFlow vs MutableStateFlow**
-```kotlin
-private val _state = MutableStateFlow(State())  // Privado, mutable
-val state: StateFlow<State> = _state.asStateFlow()  // Público, solo lectura
-```
-
-### 4. **@Composable**
-Funciones que describen UI:
-```kotlin
-@Composable
-fun MyButton() {
-    Button(onClick = {}) { Text("Click") }
+// navigation/NavGraph.kt
+composable(route = Screen.Customer.route) {
+    CustomerScreen(
+        onCustomerSelected = { customer ->
+            // Navegar a otra pantalla
+        }
+    )
 }
 ```
 
-### 5. **Offline-First**
-- Room guarda datos localmente
-- Sincroniza cuando hay internet
-- App funciona sin conexión
+---
+
+## 💡 Mejores Prácticas Implementadas
+
+### 1. No Usar Valores Hardcodeados
+
+
+✅ **Correcto:**
+```kotlin
+// Leer de base de datos
+val config = serverConfigDao.getActiveServerConfigSync()
+.baseUrl(config.serverUrl)
+.header("x-Hostname", config.serverName)
+```
+
+### 2. Diseño Responsive
+
+❌ **Incorrecto:**
+```kotlin
+Text(text = "Título", fontSize = 24.sp)
+Spacer(modifier = Modifier.height(16.dp))
+```
+
+✅ **Correcto:**
+```kotlin
+val dimensions = LocalDimensions.current
+Text(text = "Título", fontSize = dimensions.fontSizeTitle)
+Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+```
+
+### 3. Manejo de Errores Claro
+
+```kotlin
+// AuthInterceptor arroja errores descriptivos
+throw IOException("Configuración del servidor no encontrada. Por favor configure la URL y el hostname en Configuración.")
+```
+
+### 4. Estados Inmutables
+
+```kotlin
+// Siempre usa .copy() para actualizar state
+_state.update { it.copy(isLoading = true) }
+// Nunca mutación directa
+```
+
+### 5. Separación de Responsabilidades
+
+- **Screen**: Solo UI
+- **ViewModel**: Lógica de UI + coordinación
+- **UseCase**: Reglas de negocio
+- **Repository**: Acceso a datos
 
 ---
 
-## 📋 Checklist para Nuevas Features
+## 🎓 Recursos de Configuración
+
+### Constantes Importantes
+
+```kotlin
+// core/common/Constants.kt
+object Constants {
+    const val DATABASE_NAME = "megapos_database"
+    const val PREFERENCES_NAME = "megapos_preferences"
+
+    // DataStore keys
+    const val KEY_ACCESS_TOKEN = "access_token"
+    const val KEY_USER_CODE = "user_code"
+    const val KEY_USER_NAME = "user_name"
+    const val KEY_SESSION_ID = "session_id"
+    const val KEY_IS_LOGGED_IN = "is_logged_in"
+    const val KEY_SERVER_URL = "server_url"
+}
+```
+
+### Assets y Recursos
+
+**Logo de MegaSuper:**
+- Ubicación: `res/drawable/logo_megasuper.png`
+- Formato: PNG con fondo transparente
+- Tamaño recomendado: 400x120px
+- Se usa en el header de las pantallas
+
+**Densidades opcionales:**
+```
+drawable-mdpi/logo_megasuper.png    (200x60px)
+drawable-hdpi/logo_megasuper.png    (300x90px)
+drawable-xhdpi/logo_megasuper.png   (400x120px)
+drawable-xxhdpi/logo_megasuper.png  (600x180px)
+drawable-xxxhdpi/logo_megasuper.png (800x240px)
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Error: "Configuración del servidor no encontrada"
+
+**Causa**: No se ha configurado la URL y hostname
+
+**Solución**:
+1. Ir a la pantalla de Configuración
+2. Ingresar URL del API (ej: `http://192.168.1.100:6060`)
+3. Ingresar Hostname (ej: `android-pos-01`)
+4. Guardar
+
+### Error: "Cannot access database on main thread"
+
+**Solución**: Siempre usar `suspend` functions
+```kotlin
+viewModelScope.launch {
+    val config = serverConfigDao.getActiveServerConfigSync()
+}
+```
+
+### Error: Logo no aparece
+
+**Causa**: Imagen no está en la carpeta correcta
+
+**Solución**:
+1. Verificar que existe: `app/src/main/res/drawable/logo_megasuper.png`
+2. Si usas XML placeholder, reemplázalo con PNG
+3. Clean & Rebuild project
+
+### UI no se adapta en tablet
+
+**Causa**: No se está usando el sistema de dimensiones
+
+**Solución**:
+```kotlin
+val dimensions = LocalDimensions.current
+// Usar dimensions.* en lugar de valores fijos
+```
+
+---
+
+## 📋 Checklist de Nueva Feature
 
 - [ ] Crear modelo en `domain/model/`
 - [ ] Crear DTO en `data/remote/dto/`
@@ -492,154 +991,44 @@ fun MyButton() {
 - [ ] Crear repository interface en `domain/repository/`
 - [ ] Implementar repository en `data/repository/`
 - [ ] Crear Use Case en `domain/usecase/`
-- [ ] Registrar en módulos Hilt
-- [ ] Crear State & Events
-- [ ] Crear ViewModel
-- [ ] Crear Screen con Compose
-- [ ] Agregar a NavGraph
+- [ ] Registrar en módulos Hilt (`di/`)
+- [ ] Crear State en `presentation/[feature]/`
+- [ ] Crear Events en `presentation/[feature]/`
+- [ ] Crear ViewModel en `presentation/[feature]/`
+- [ ] Crear Screen con Compose usando `LocalDimensions`
+- [ ] Agregar route a `Screen.kt`
+- [ ] Agregar composable a `NavGraph.kt`
+- [ ] Probar en phone y tablet
 
 ---
 
-## 🛠️ Herramientas Importantes
+## 🎯 Próximos Pasos Recomendados
 
-- **Logcat**: Ver logs en Android Studio
-- **Network Profiler**: Ver llamadas HTTP
-- **Database Inspector**: Ver datos de Room
-- **Layout Inspector**: Depurar UI Compose
-
----
-
-## 📚 Recursos Adicionales
-
-### Documentación Oficial
-- [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [Jetpack Compose](https://developer.android.com/jetpack/compose)
-- [Hilt](https://developer.android.com/training/dependency-injection/hilt-android)
-- [Kotlin Flow](https://developer.android.com/kotlin/flow)
-- [Room](https://developer.android.com/training/data-storage/room)
-- [Retrofit](https://square.github.io/retrofit/)
-
-### Tutoriales
-- [Guide to app architecture](https://developer.android.com/topic/architecture)
-- [Kotlin Coroutines](https://kotlinlang.org/docs/coroutines-overview.html)
-- [State in Compose](https://developer.android.com/jetpack/compose/state)
+1. **Implementar más endpoints** del backend
+2. **Agregar validación de campos** más robusta
+3. **Implementar cache offline** con Room
+4. **Agregar tests unitarios** para ViewModels y UseCases
+5. **Implementar manejo de errores** más específico (códigos de error del backend)
+6. **Agregar animaciones** y transiciones
+7. **Implementar refresh de token** automático
+8. **Agregar modo oscuro** (opcional)
+9. **Implementar sincronización** en background
 
 ---
 
-## 💡 Tips y Mejores Prácticas
+## 📚 Stack Tecnológico
 
-### 1. Naming Conventions
-- **ViewModel**: `LoginViewModel`, `CustomerViewModel`
-- **UseCase**: `LoginUseCase`, `GetCustomerUseCase`
-- **Repository**: `AuthRepository`, `CustomerRepository`
-- **DTO**: `LoginRequestDto`, `CustomerDto`
-- **Screen**: `LoginScreen`, `CustomerScreen`
-- **State**: `LoginState`, `CustomerState`
-- **Event**: `LoginEvent`, `CustomerEvent`
-
-### 2. Organización de Archivos
-Agrupa por feature, no por tipo:
-```
-✅ Correcto:
-presentation/
-  login/
-    LoginScreen.kt
-    LoginViewModel.kt
-    LoginState.kt
-    LoginEvent.kt
-  customer/
-    CustomerScreen.kt
-    CustomerViewModel.kt
-
-❌ Incorrecto:
-presentation/
-  screens/
-    LoginScreen.kt
-    CustomerScreen.kt
-  viewmodels/
-    LoginViewModel.kt
-    CustomerViewModel.kt
-```
-
-### 3. Evita God Objects
-- Mantén ViewModels pequeños y enfocados
-- Un ViewModel por pantalla
-- Un UseCase hace UNA cosa
-
-### 4. Testing
-```kotlin
-// Test de Use Case
-@Test
-fun `login with empty code returns error`() = runTest {
-    val useCase = LoginUseCase(mockRepository)
-
-    useCase("", "password").collect { result ->
-        assert(result is Resource.Error)
-        assertEquals("Código requerido", result.message)
-    }
-}
-```
-
-### 5. Logging
-```kotlin
-// En desarrollo
-if (BuildConfig.DEBUG) {
-    Log.d("LoginViewModel", "Login successful: $token")
-}
-```
+- **Lenguaje**: Kotlin
+- **UI**: Jetpack Compose
+- **Arquitectura**: Clean Architecture + MVVM
+- **Inyección de Dependencias**: Hilt
+- **Base de Datos**: Room
+- **Preferencias**: DataStore
+- **Networking**: Retrofit + OkHttp
+- **Async**: Kotlin Coroutines + Flow
+- **State Management**: StateFlow
+- **Navigation**: Compose Navigation
 
 ---
 
-## 🐛 Troubleshooting Común
-
-### Error: "Cannot access database on main thread"
-**Solución**: Usa `suspend` functions o Flow
-```kotlin
-// ❌ Incorrecto
-val data = database.dao().getData()
-
-// ✅ Correcto
-viewModelScope.launch {
-    val data = database.dao().getData()
-}
-```
-
-### Error: "lateinit property has not been initialized"
-**Solución**: Usa Hilt o inicializa en `onCreate`
-
-### Error: "No value for X in state"
-**Solución**: Provee valores por defecto en el State
-```kotlin
-data class LoginState(
-    val userCode: String = "",  // ✅ Default
-    val password: String = ""
-)
-```
-
-### Error: "java.lang.IllegalStateException: Flow invariant is violated"
-**Solución**: No uses `flow.collect {}` dos veces en el mismo Flow
-```kotlin
-// ❌ Incorrecto
-val flow = repository.getData()
-flow.collect { }
-flow.collect { }  // Error!
-
-// ✅ Correcto
-repository.getData().collect { }  // Nueva instancia
-```
-
----
-
-## 🎯 Próximos Pasos
-
-1. **Implementar más endpoints** usando `IMPLEMENTATION_GUIDE.md`
-2. **Agregar tests** unitarios y de integración
-3. **Mejorar UI** con animaciones y transiciones
-4. **Implementar modo offline** completo con Room
-5. **Agregar manejo de errores** más robusto
-6. **Implementar refresh tokens** para sesiones largas
-7. **Agregar analytics** y crash reporting
-
----
-
-**¿Preguntas? Revisa `IMPLEMENTATION_GUIDE.md` para ejemplos específicos de cada endpoint.**
+**¿Preguntas? Revisa este documento o consulta el código directamente en las rutas indicadas.**

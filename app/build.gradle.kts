@@ -21,6 +21,9 @@ android {
 
         // BuildConfig field for API base URL
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:6060/pos-api/v1/\"")
+
+        // Development mode - skips printer connectivity test
+        buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
     }
 
     buildTypes {
@@ -31,6 +34,7 @@ android {
                 "proguard-rules.pro"
             )
             buildConfigField("String", "API_BASE_URL", "\"http://YOUR_SERVER_IP:6060/pos-api/v1/\"")
+            buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
         }
     }
     compileOptions {
