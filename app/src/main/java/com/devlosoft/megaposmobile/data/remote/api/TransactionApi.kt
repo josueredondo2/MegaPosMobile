@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.data.remote.api
 
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
@@ -38,4 +39,10 @@ interface TransactionApi {
         @Query("isReprint") isReprint: Boolean = false,
         @Query("copyNumber") copyNumber: Int = 0
     ): Response<PrintTransactionResponseDto>
+
+    @GET("transaction/can-recover")
+    suspend fun canRecoverTransaction(
+        @Query("sessionId") sessionId: String,
+        @Query("workstationId") workstationId: String
+    ): Response<CanRecoverTransactionResponseDto>
 }

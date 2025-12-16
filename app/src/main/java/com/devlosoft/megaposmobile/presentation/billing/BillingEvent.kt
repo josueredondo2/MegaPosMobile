@@ -27,4 +27,8 @@ sealed class BillingEvent {
 
     // Navigation events
     data object GoBack : BillingEvent()
+
+    // Recovery check events
+    data object CheckTransactionRecovery : BillingEvent()
+    data object DismissRecoveryCheckError : BillingEvent()
 }

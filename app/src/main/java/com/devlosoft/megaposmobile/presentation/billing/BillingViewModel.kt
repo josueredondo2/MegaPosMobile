@@ -8,6 +8,7 @@ import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.model.Customer
+import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
@@ -34,6 +35,10 @@ class BillingViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(BillingState())
     val state: StateFlow<BillingState> = _state.asStateFlow()
+
+    init {
+        checkTransactionRecovery()
+    }
 
     fun onEvent(event: BillingEvent) {
         when (event) {
@@ -88,6 +93,62 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.GoBack -> {
                 // Handle in screen
+            }
+            is BillingEvent.CheckTransactionRecovery -> {
+                checkTransactionRecovery()
+            }
+            is BillingEvent.DismissRecoveryCheckError -> {
+                _state.update { it.copy(recoveryCheckError = null) }
+            }
+        }
+    }
+
+    private fun checkTransactionRecovery() {
+        viewModelScope.launch {
+            val sessionId = sessionManager.getSessionId().first()
+            val stationId = sessionManager.getStationId().first()
+
+            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                // No session, allow new transaction
+                return@launch
+            }
+
+            billingRepository.canRecoverTransaction(sessionId, stationId).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update { it.copy(isCheckingRecovery = true) }
+                    }
+                    is Resource.Success -> {
+                        val recovery = result.data!!
+                        if (recovery.canRecover && !recovery.canCreate) {
+                            // Recover transaction - populate state and navigate
+                            _state.update {
+                                it.copy(
+                                    isCheckingRecovery = false,
+                                    transactionCode = recovery.transactionId ?: "",
+                                    isTransactionCreated = true,
+                                    invoiceData = recovery.invoiceData ?: InvoiceData(),
+                                    selectedCustomer = recovery.customer,
+                                    hasRecoverableTransaction = true,
+                                    shouldNavigateToTransaction = true
+                                )
+                            }
+                        } else {
+                            // Can create new - normal flow
+                            _state.update {
+                                it.copy(isCheckingRecovery = false)
+                            }
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isCheckingRecovery = false,
+                                recoveryCheckError = result.message
+                            )
+                        }
+                    }
+                }
             }
         }
     }

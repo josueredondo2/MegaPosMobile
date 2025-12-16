@@ -4,6 +4,7 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
+import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import kotlinx.coroutines.flow.Flow
 
 interface BillingRepository {
@@ -32,4 +33,9 @@ interface BillingRepository {
         isReprint: Boolean = false,
         copyNumber: Int = 0
     ): Flow<Resource<List<PrintDocument>>>
+
+    suspend fun canRecoverTransaction(
+        sessionId: String,
+        workstationId: String
+    ): Flow<Resource<TransactionRecoveryResult>>
 }
