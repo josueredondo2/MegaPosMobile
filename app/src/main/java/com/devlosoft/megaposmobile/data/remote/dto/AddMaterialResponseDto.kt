@@ -9,6 +9,9 @@ data class AddMaterialResponseDto(
     @SerializedName("requiresAuthorization")
     val requiresAuthorization: Boolean,
 
+    @SerializedName("transactionId")
+    val transactionId: String?,
+
     @SerializedName("invoiceData")
     val invoiceData: InvoiceDataDto?
 )

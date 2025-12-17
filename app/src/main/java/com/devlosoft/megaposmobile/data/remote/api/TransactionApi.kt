@@ -3,8 +3,6 @@ package com.devlosoft.megaposmobile.data.remote.api
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponseDto
-import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
-import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
@@ -16,11 +14,6 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface TransactionApi {
-
-    @POST("transaction")
-    suspend fun createTransaction(
-        @Body request: CreateTransactionRequestDto
-    ): Response<CreateTransactionResponseDto>
 
     @POST("material/add")
     suspend fun addMaterial(

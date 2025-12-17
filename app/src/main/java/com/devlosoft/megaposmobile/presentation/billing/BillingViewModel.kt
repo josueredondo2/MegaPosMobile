@@ -212,82 +212,33 @@ class BillingViewModel @Inject constructor(
         val articleId = _state.value.articleSearchQuery.trim()
         if (articleId.isBlank()) return
 
-        val transactionCode = _state.value.transactionCode
-        if (transactionCode.isBlank()) {
-            // Need to create transaction first, then add article
-            createTransactionAndAddArticle(articleId)
-            return
-        }
-
-        // Transaction already exists, just add the article
-        addArticleToTransaction(transactionCode, articleId)
-    }
-
-    private fun createTransactionAndAddArticle(articleId: String) {
         viewModelScope.launch {
-            val sessionId = sessionManager.getSessionId().first()
-            val stationId = sessionManager.getStationId().first()
-
-            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
-                _state.update {
-                    it.copy(addArticleError = "No hay sesión activa")
-                }
-                return@launch
-            }
-
-            // Use default customer if none selected
-            val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
-
-            // First create the transaction
-            billingRepository.createTransaction(
-                sessionId = sessionId,
-                workstationId = stationId,
-                customerId = customerToUse.partyId.toString(),
-                customerIdType = customerToUse.identificationType,
-                customerName = customerToUse.name
-            ).collect { result ->
-                when (result) {
-                    is Resource.Loading -> {
-                        _state.update {
-                            it.copy(
-                                isAddingArticle = true,
-                                addArticleError = null
-                            )
-                        }
-                    }
-                    is Resource.Success -> {
-                        val transactionCode = result.data ?: ""
-                        _state.update {
-                            it.copy(
-                                transactionCode = transactionCode,
-                                isTransactionCreated = true
-                            )
-                        }
-                        // Now add the article
-                        addArticleToTransaction(transactionCode, articleId)
-                    }
-                    is Resource.Error -> {
-                        _state.update {
-                            it.copy(
-                                isAddingArticle = false,
-                                addArticleError = result.message
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun addArticleToTransaction(transactionCode: String, articleId: String) {
-        viewModelScope.launch {
+            val currentTransactionCode = _state.value.transactionCode
             val selectedCustomer = _state.value.selectedCustomer
 
+            // create new transaction on new item
+            var sessionId: String? = null
+            var workstationId: String? = null
+
+            if (currentTransactionCode.isBlank()) {
+                sessionId = sessionManager.getSessionId().first()
+                workstationId = sessionManager.getStationId().first()
+
+                if (sessionId.isNullOrBlank() || workstationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(addArticleError = "No hay sesión activa")
+                    }
+                    return@launch
+                }
+            }
+
             billingRepository.addMaterial(
-                transactionId = transactionCode,
+                transactionId = currentTransactionCode,
                 itemPosId = articleId,
                 quantity = 1.0,
-                partyAffiliationTypeCode = selectedCustomer?.affiliateType
+                partyAffiliationTypeCode = selectedCustomer?.affiliateType,
+                sessionId = sessionId,
+                workstationId = workstationId
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
@@ -299,11 +250,15 @@ class BillingViewModel @Inject constructor(
                         }
                     }
                     is Resource.Success -> {
+                        val addResult = result.data!!
                         _state.update {
                             it.copy(
                                 isAddingArticle = false,
-                                invoiceData = result.data ?: it.invoiceData,
-                                articleSearchQuery = "" // Clear the input
+                                // Actualizar transactionCode si se creó una nueva transacción
+                                transactionCode = addResult.transactionId ?: it.transactionCode,
+                                isTransactionCreated = addResult.transactionId != null || it.isTransactionCreated,
+                                invoiceData = addResult.invoiceData,
+                                articleSearchQuery = "" // Limpiar el input
                             )
                         }
                     }

@@ -4,9 +4,9 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
-import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
+import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
@@ -42,65 +42,33 @@ class BillingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun createTransaction(
-        sessionId: String,
-        workstationId: String,
-        customerId: String?,
-        customerIdType: String?,
-        customerName: String?
-    ): Flow<Resource<String>> = flow {
-        emit(Resource.Loading())
-        try {
-            val request = CreateTransactionRequestDto(
-                sessionId = sessionId,
-                workstationId = workstationId,
-                customerId = customerId,
-                customerIdType = customerIdType,
-                customerName = customerName
-            )
-            val response = transactionApi.createTransaction(request)
-            if (response.isSuccessful) {
-                val transactionCode = response.body()?.transactionCode
-                if (transactionCode != null) {
-                    emit(Resource.Success(transactionCode))
-                } else {
-                    emit(Resource.Error("Respuesta vacía del servidor"))
-                }
-            } else {
-                val errorBody = response.errorBody()?.string()
-                val errorResponse = ErrorResponseDto.fromJson(errorBody)
-                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
-                emit(Resource.Error(errorMessage))
-            }
-        } catch (e: IOException) {
-            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
-        } catch (e: Exception) {
-            emit(Resource.Error("Error inesperado: ${e.message}"))
-        }
-    }
-
     override suspend fun addMaterial(
         transactionId: String,
         itemPosId: String,
         quantity: Double,
-        partyAffiliationTypeCode: String?
-    ): Flow<Resource<InvoiceData>> = flow {
+        partyAffiliationTypeCode: String?,
+        sessionId: String?,
+        workstationId: String?
+    ): Flow<Resource<AddMaterialResult>> = flow {
         emit(Resource.Loading())
         try {
             val request = AddMaterialRequestDto(
                 transactionId = transactionId,
                 itemPosId = itemPosId,
                 quantity = quantity,
-                partyAffiliationTypeCode = partyAffiliationTypeCode
+                partyAffiliationTypeCode = partyAffiliationTypeCode,
+                sessionId = sessionId,
+                workstationId = workstationId
             )
             val response = transactionApi.addMaterial(request)
             if (response.isSuccessful) {
-                val invoiceData = response.body()?.invoiceData?.toDomain()
-                if (invoiceData != null) {
-                    emit(Resource.Success(invoiceData))
-                } else {
-                    emit(Resource.Error("Respuesta vacía del servidor"))
-                }
+                val body = response.body()
+                val invoiceData = body?.invoiceData?.toDomain() ?: InvoiceData()
+                val result = AddMaterialResult(
+                    transactionId = body?.transactionId,
+                    invoiceData = invoiceData
+                )
+                emit(Resource.Success(result))
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)
