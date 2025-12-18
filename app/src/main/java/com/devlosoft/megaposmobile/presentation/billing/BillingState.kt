@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.presentation.billing
 
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
 
 data class BillingState(
     // Customer search state

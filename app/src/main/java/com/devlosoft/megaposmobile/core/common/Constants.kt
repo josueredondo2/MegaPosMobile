@@ -12,4 +12,5 @@ object Constants {
     const val KEY_STATION_ID = "station_id"
     const val KEY_IS_LOGGED_IN = "is_logged_in"
     const val KEY_SERVER_URL = "server_url"
+    const val KEY_USER_PERMISSIONS = "user_permissions"
 }

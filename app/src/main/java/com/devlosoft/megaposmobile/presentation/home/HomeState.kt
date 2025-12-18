@@ -20,5 +20,11 @@ data class HomeState(
     val showCloseTerminalSuccessDialog: Boolean = false,
     val closeTerminalMessage: String = "",
     val isCheckingPrinter: Boolean = false,
-    val printerError: String? = null
+    val printerError: String? = null,
+    // Permissions for menu items
+    val canOpenTerminal: Boolean = false,
+    val canCloseTerminal: Boolean = false,
+    val canCloseDatafono: Boolean = false,
+    val canBilling: Boolean = false,
+    val canViewTransactions: Boolean = false
 )

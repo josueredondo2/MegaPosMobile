@@ -178,60 +178,67 @@ fun HomeScreen(
                     )
 
                     Text(
-                        text = "Estado: ${state.stationStatus}",
+                        text = "Estado de Terminal: ${state.stationStatus}",
                         fontSize = dimensions.fontSizeMedium,
-                        color = Color.DarkGray
+                        fontWeight = FontWeight.Bold,
+                        color = if (state.isStationOpen) Color(0xFF4CAF50) else Color(0xFFE53935)
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Menu Cards
-                    MenuCard(
-                        icon = Icons.Default.PhoneAndroid,
-                        title = "Aperturar Terminal",
-                        description = "Realiza la apertura para el dia.",
-                        onClick = { onNavigateToProcess("openTerminal") }
-                    )
+                    // Menu Cards - shown based on user permissions
+                    if (state.canOpenTerminal) {
+                        MenuCard(
+                            icon = Icons.Default.PhoneAndroid,
+                            title = "Aperturar Terminal",
+                            description = "Realiza la apertura para el dia.",
+                            onClick = { onNavigateToProcess("openTerminal") }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    if (state.canCloseTerminal) {
+                        MenuCard(
+                            icon = Icons.Default.Lock,
+                            title = "Cierre Terminal",
+                            description = "Realiza el cierre para el dia incluyendo cierre del datafono",
+                            onClick = { onNavigateToProcess("closeTerminal") }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    MenuCard(
-                        icon = Icons.Default.Lock,
-                        title = "Cierre Terminal",
-                        description = "Realiza el cierre para el dia incluyendo cierre del datafono",
-                        onClick = { onNavigateToProcess("closeTerminal") }
-                    )
+                    if (state.canCloseDatafono) {
+                        MenuCard(
+                            icon = Icons.Default.Receipt,
+                            title = "Cierre de datafono",
+                            description = "Cerrar el lote de ventas del datafono.",
+                            onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    if (state.canBilling) {
+                        MenuCard(
+                            icon = Icons.Default.AttachMoney,
+                            title = "Facturación",
+                            description = "Ingresa para facturar",
+                            enabled = state.isStationOpen && !state.isCheckingPrinter,
+                            onClick = { viewModel.onEvent(HomeEvent.CheckPrinterAndNavigateToBilling) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    MenuCard(
-                        icon = Icons.Default.Receipt,
-                        title = "Cierre de datafono",
-                        description = "Cerrar el lote de ventas del datafono.",
-                        onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
-                    )
+                    if (state.canViewTransactions) {
+                        MenuCard(
+                            icon = Icons.Default.Receipt,
+                            title = "Transacciones del dia",
+                            description = "Ver transacciones realizadas durante el dia.",
+                            onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    MenuCard(
-                        icon = Icons.Default.AttachMoney,
-                        title = "Facturación",
-                        description = "Ingresa para facturar",
-                        enabled = state.isStationOpen && !state.isCheckingPrinter,
-                        onClick = { viewModel.onEvent(HomeEvent.CheckPrinterAndNavigateToBilling) }
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    MenuCard(
-                        icon = Icons.Default.Receipt,
-                        title = "Transacciones del dia",
-                        description = "Ver transacciones realizadas durante el dia.",
-                        onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
+                    // Opciones Avanzadas - always visible (no permission validation yet)
                     MenuCard(
                         icon = Icons.Default.Settings,
                         title = "Opciones Avanzadas",

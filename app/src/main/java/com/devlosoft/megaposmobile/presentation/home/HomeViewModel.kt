@@ -10,6 +10,7 @@ import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -55,6 +56,9 @@ class HomeViewModel @Inject constructor(
             val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("es", "ES"))
             val currentDate = dateFormat.format(Date())
 
+            // Get user permissions
+            val permissions = sessionManager.getUserPermissionsSync()
+
             // Get station status
             stationStatus.state.collect { status ->
                 _state.update {
@@ -64,7 +68,13 @@ class HomeViewModel @Inject constructor(
                         terminalName = terminalName,
                         stationStatus = stationStatus.getDisplayText(),
                         isStationOpen = status == StationState.OPEN,
-                        isLoading = false
+                        isLoading = false,
+                        // Set permissions for menu items (using 'show' property)
+                        canOpenTerminal = permissions?.shouldShow(UserPermissions.PROCESS_APERTURA_CAJA) ?: false,
+                        canCloseTerminal = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_CAJA) ?: false,
+                        canCloseDatafono = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false,
+                        canBilling = permissions?.shouldShow(UserPermissions.PROCESS_FACTURAR) ?: false,
+                        canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false
                     )
                 }
             }
@@ -231,6 +241,9 @@ class HomeViewModel @Inject constructor(
 
     private fun logout() {
         viewModelScope.launch {
+            // Close station status when logging out
+            stationStatus.close()
+
             logoutUseCase().collect { }
             onLogoutCallback?.invoke()
         }
