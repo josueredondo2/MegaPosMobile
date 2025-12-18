@@ -4,16 +4,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
-import com.devlosoft.megaposmobile.core.printer.PrinterManager
-import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
-import com.devlosoft.megaposmobile.domain.model.PrintDocument
-import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
+import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
+import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,9 +26,9 @@ import javax.inject.Inject
 class BillingViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
-    private val serverConfigDao: ServerConfigDao,
-    private val printerManager: PrinterManager,
-    private val authorizeProcessUseCase: AuthorizeProcessUseCase
+    private val authorizeProcessUseCase: AuthorizeProcessUseCase,
+    private val printDocumentsUseCase: PrintDocumentsUseCase,
+    private val getSessionInfoUseCase: GetSessionInfoUseCase
 ) : ViewModel() {
 
     companion object {
@@ -517,81 +515,28 @@ class BillingViewModel @Inject constructor(
     private suspend fun fetchAndPrintDocuments(transactionCode: String) {
         Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionCode")
 
-        billingRepository.getPrintDocuments(
-            transactionId = transactionCode,
-            templateId = "01-FC",
-            isReprint = false,
-            copyNumber = 0
-        ).collect { result ->
-            when (result) {
-                is Resource.Loading -> {
-                    Log.d(TAG, "Fetching print documents...")
-                }
-                is Resource.Success -> {
-                    val documents = result.data ?: emptyList()
-                    Log.d(TAG, "Received ${documents.size} print documents")
-
-                    // Print each document
-                    for (document in documents) {
-                        printDocument(document)
-                    }
-
-                    // Update state after printing
-                    _state.update {
-                        it.copy(
-                            isFinalizingTransaction = false,
-                            isTransactionFinalized = true,
-                            shouldNavigateBackToBilling = true
-                        )
-                    }
-                    Log.d(TAG, "State updated successfully after printing")
-                }
-                is Resource.Error -> {
-                    Log.e(TAG, "Error fetching print documents: ${result.message}")
-                    // Still finalize the transaction UI, just log the print error
-                    _state.update {
-                        it.copy(
-                            isFinalizingTransaction = false,
-                            isTransactionFinalized = true,
-                            shouldNavigateBackToBilling = true
-                        )
-                    }
+        printDocumentsUseCase(transactionCode)
+            .onSuccess { printedCount ->
+                Log.d(TAG, "Successfully printed $printedCount documents")
+                _state.update {
+                    it.copy(
+                        isFinalizingTransaction = false,
+                        isTransactionFinalized = true,
+                        shouldNavigateBackToBilling = true
+                    )
                 }
             }
-        }
-    }
-
-    private suspend fun printDocument(document: PrintDocument) {
-        Log.d(TAG, "Printing document: ${document.documentType}")
-
-        try {
-            val config = serverConfigDao.getActiveServerConfigSync()
-
-            if (config == null) {
-                Log.e(TAG, "No server config found")
-                return
-            }
-
-            val printText = document.printText
-            Log.d(TAG, "Print text length: ${printText.length}")
-
-            val printerModel = PrinterModel.fromString(config.printerModel)
-            Log.d(TAG, "Using printer model: ${printerModel.displayName}")
-
-            // Print using PrinterManager (handles both IP and Bluetooth internally)
-            val result = printerManager.printText(printText)
-
-            result.fold(
-                onSuccess = { message ->
-                    Log.d(TAG, "Print success: $message")
-                },
-                onFailure = { exception ->
-                    Log.e(TAG, "Print error: ${exception.message}")
+            .onFailure { error ->
+                Log.e(TAG, "Error printing documents: ${error.message}")
+                // Still finalize the transaction UI, just log the print error
+                _state.update {
+                    it.copy(
+                        isFinalizingTransaction = false,
+                        isTransactionFinalized = true,
+                        shouldNavigateBackToBilling = true
+                    )
                 }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception while printing: ${e.message}", e)
-        }
+            }
     }
 
     // Authorization methods

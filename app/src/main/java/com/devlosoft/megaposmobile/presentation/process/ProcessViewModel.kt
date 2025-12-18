@@ -4,21 +4,18 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
-import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.core.state.StationStatus
-import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
-import com.devlosoft.megaposmobile.domain.model.PrintDocument
-import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
+import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
+import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -40,8 +37,8 @@ class ProcessViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
     private val stationStatus: StationStatus,
-    private val serverConfigDao: ServerConfigDao,
-    private val printerManager: PrinterManager
+    private val printDocumentsUseCase: PrintDocumentsUseCase,
+    private val getSessionInfoUseCase: GetSessionInfoUseCase
 ) : ViewModel() {
 
     companion object {
@@ -82,24 +79,24 @@ class ProcessViewModel @Inject constructor(
             }
 
             // Simulate 3 second wait for payment
-            delay(3000)
+            delay(500)
 
-            // Get session data
-            val sessionId = sessionManager.getSessionId().first()
-            val stationId = sessionManager.getStationId().first()
-
-            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+            // Get session data using UseCase
+            val sessionResult = getSessionInfoUseCase()
+            if (sessionResult.isFailure) {
                 _state.update {
-                    it.copy(status = ProcessStatus.Error("No hay sesión activa"))
+                    it.copy(status = ProcessStatus.Error(sessionResult.exceptionOrNull()?.message ?: "No hay sesión activa"))
                 }
                 return@launch
             }
 
+            val sessionInfo = sessionResult.getOrThrow()
+
             // Call finalize transaction
             Log.d(TAG, "Calling finalizeTransaction...")
             billingRepository.finalizeTransaction(
-                sessionId = sessionId,
-                workstationId = stationId,
+                sessionId = sessionInfo.sessionId,
+                workstationId = sessionInfo.stationId,
                 transactionId = transactionId
             ).collect { result ->
                 when (result) {
@@ -125,73 +122,20 @@ class ProcessViewModel @Inject constructor(
     private suspend fun fetchAndPrintDocuments(transactionId: String) {
         Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionId")
 
-        billingRepository.getPrintDocuments(
-            transactionId = transactionId,
-            templateId = "01-FC",
-            isReprint = false,
-            copyNumber = 0
-        ).collect { result ->
-            when (result) {
-                is Resource.Loading -> {
-                    Log.d(TAG, "Fetching print documents...")
-                }
-                is Resource.Success -> {
-                    val documents = result.data ?: emptyList()
-                    Log.d(TAG, "Received ${documents.size} print documents")
-
-                    // Print each document
-                    for (document in documents) {
-                        printDocument(document)
-                    }
-
-                    // Update state after printing
-                    _state.update {
-                        it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
-                    }
-                    Log.d(TAG, "State updated successfully after printing")
-                }
-                is Resource.Error -> {
-                    Log.e(TAG, "Error fetching print documents: ${result.message}")
-                    // Still show success for the transaction, just log the print error
-                    _state.update {
-                        it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
-                    }
+        printDocumentsUseCase(transactionId)
+            .onSuccess { printedCount ->
+                Log.d(TAG, "Successfully printed $printedCount documents")
+                _state.update {
+                    it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
                 }
             }
-        }
-    }
-
-    private suspend fun printDocument(document: PrintDocument) {
-        Log.d(TAG, "Printing document: ${document.documentType}")
-
-        try {
-            val config = serverConfigDao.getActiveServerConfigSync()
-
-            if (config == null) {
-                Log.e(TAG, "No server config found")
-                return
-            }
-
-            val printText = document.printText
-            Log.d(TAG, "Print text length: ${printText.length}")
-
-            val printerModel = PrinterModel.fromString(config.printerModel)
-            Log.d(TAG, "Using printer model: ${printerModel.displayName}")
-
-            // Print using PrinterManager (handles both IP and Bluetooth internally)
-            val result = printerManager.printText(printText)
-
-            result.fold(
-                onSuccess = { message ->
-                    Log.d(TAG, "Print success: $message")
-                },
-                onFailure = { exception ->
-                    Log.e(TAG, "Print error: ${exception.message}")
+            .onFailure { error ->
+                Log.e(TAG, "Error printing documents: ${error.message}")
+                // Still show success for the transaction, just log the print error
+                _state.update {
+                    it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
                 }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception while printing: ${e.message}", e)
-        }
+            }
     }
 
     private fun openTerminal() {
