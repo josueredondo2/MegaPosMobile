@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.domain.repository
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
+import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +16,10 @@ interface BillingRepository {
         quantity: Double,
         partyAffiliationTypeCode: String?,
         sessionId: String? = null,
-        workstationId: String? = null
+        workstationId: String? = null,
+        customerId: String? = null,
+        customerIdType: String? = null,
+        customerName: String? = null
     ): Flow<Resource<AddMaterialResult>>
     suspend fun finalizeTransaction(
         sessionId: String,
@@ -33,4 +37,18 @@ interface BillingRepository {
         sessionId: String,
         workstationId: String
     ): Flow<Resource<TransactionRecoveryResult>>
+
+    suspend fun updateTransactionCustomer(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String,
+        customerId: Int,
+        customerIdType: String,
+        customerName: String,
+        affiliateType: String
+    ): Flow<Resource<Boolean>>
+
+    suspend fun getTransactionDetails(
+        transactionId: String
+    ): Flow<Resource<InvoiceData>>
 }

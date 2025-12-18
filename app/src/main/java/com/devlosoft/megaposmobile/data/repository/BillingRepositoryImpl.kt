@@ -6,6 +6,7 @@ import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -48,7 +49,10 @@ class BillingRepositoryImpl @Inject constructor(
         quantity: Double,
         partyAffiliationTypeCode: String?,
         sessionId: String?,
-        workstationId: String?
+        workstationId: String?,
+        customerId: String?,
+        customerIdType: String?,
+        customerName: String?
     ): Flow<Resource<AddMaterialResult>> = flow {
         emit(Resource.Loading())
         try {
@@ -58,7 +62,10 @@ class BillingRepositoryImpl @Inject constructor(
                 quantity = quantity,
                 partyAffiliationTypeCode = partyAffiliationTypeCode,
                 sessionId = sessionId,
-                workstationId = workstationId
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName
             )
             val response = transactionApi.addMaterial(request)
             if (response.isSuccessful) {
@@ -170,6 +177,64 @@ class BillingRepositoryImpl @Inject constructor(
                 } else {
                     emit(Resource.Error("Respuesta vacía del servidor"))
                 }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun updateTransactionCustomer(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String,
+        customerId: Int,
+        customerIdType: String,
+        customerName: String,
+        affiliateType: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = UpdateTransactionCustomerRequestDto(
+                transactionId = transactionId,
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                affiliateType = affiliateType
+            )
+            val response = transactionApi.updateTransactionCustomer(request)
+            if (response.isSuccessful) {
+                emit(Resource.Success(true))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun getTransactionDetails(
+        transactionId: String
+    ): Flow<Resource<InvoiceData>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.getTransactionDetails(transactionId)
+            if (response.isSuccessful) {
+                val invoiceData = response.body()?.toDomain() ?: InvoiceData()
+                emit(Resource.Success(invoiceData))
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

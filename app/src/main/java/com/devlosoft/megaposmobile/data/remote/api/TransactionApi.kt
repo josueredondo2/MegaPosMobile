@@ -5,11 +5,14 @@ import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.InvoiceDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -38,4 +41,14 @@ interface TransactionApi {
         @Query("sessionId") sessionId: String,
         @Query("workstationId") workstationId: String
     ): Response<CanRecoverTransactionResponseDto>
+
+    @PUT("transaction/customer")
+    suspend fun updateTransactionCustomer(
+        @Body request: UpdateTransactionCustomerRequestDto
+    ): Response<Unit>
+
+    @GET("transaction/{transactionId}/details")
+    suspend fun getTransactionDetails(
+        @Path("transactionId") transactionId: String
+    ): Response<InvoiceDataDto>
 }

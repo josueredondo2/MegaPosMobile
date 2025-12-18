@@ -28,5 +28,14 @@ data class AddMaterialRequestDto(
     val sessionId: String? = null,
 
     @SerializedName("workstationId")
-    val workstationId: String? = null
+    val workstationId: String? = null,
+
+    @SerializedName("customerId")
+    val customerId: String? = null,
+
+    @SerializedName("customerIdType")
+    val customerIdType: String? = null,
+
+    @SerializedName("customerName")
+    val customerName: String? = null
 )

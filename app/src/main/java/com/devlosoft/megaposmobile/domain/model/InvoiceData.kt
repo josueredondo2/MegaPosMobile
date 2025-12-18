@@ -24,5 +24,8 @@ data class InvoiceItem(
     val quantity: Double = 0.0,
     val total: Double = 0.0,
     val hasDiscount: Boolean = false,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val isSponsor: Boolean = false,
+    val isTaxExempt: Boolean = false,
+    val hasPackaging: Boolean = false
 )

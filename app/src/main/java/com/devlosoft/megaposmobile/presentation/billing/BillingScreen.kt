@@ -38,8 +38,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,6 +54,7 @@ import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun BillingScreen(
     viewModel: BillingViewModel = hiltViewModel(),
@@ -62,6 +65,7 @@ fun BillingScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // Handle navigation to transaction screen
     LaunchedEffect(state.shouldNavigateToTransaction) {
@@ -210,7 +214,10 @@ fun BillingScreen(
                             imeAction = ImeAction.Search
                         ),
                         keyboardActions = KeyboardActions(
-                            onSearch = { viewModel.onEvent(BillingEvent.SearchCustomer) }
+                            onSearch = {
+                                keyboardController?.hide()
+                                viewModel.onEvent(BillingEvent.SearchCustomer)
+                            }
                         ),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -269,7 +276,7 @@ fun BillingScreen(
                             )
                         } else {
                             Text(
-                                text = "Iniciar Transacción",
+                                text = if (state.transactionCode.isNotBlank()) "Actualizar Cliente" else "Iniciar Transacción",
                                 fontSize = dimensions.fontSizeExtraLarge,
                                 fontWeight = FontWeight.Medium
                             )

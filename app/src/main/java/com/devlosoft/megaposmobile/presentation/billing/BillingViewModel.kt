@@ -49,7 +49,7 @@ class BillingViewModel @Inject constructor(
                 searchCustomer()
             }
             is BillingEvent.SelectCustomer -> {
-                _state.update { it.copy(selectedCustomer = event.customer) }
+                selectCustomer(event.customer)
             }
             is BillingEvent.ClearCustomerSearch -> {
                 _state.update {
@@ -153,6 +153,49 @@ class BillingViewModel @Inject constructor(
         }
     }
 
+    private fun selectCustomer(customer: Customer) {
+        _state.update { it.copy(selectedCustomer = customer) }
+
+        val transactionCode = _state.value.transactionCode
+        if (transactionCode.isNotBlank()) {
+            updateTransactionCustomer(customer)
+        }
+    }
+
+    private fun updateTransactionCustomer(customer: Customer) {
+        viewModelScope.launch {
+            val sessionId = sessionManager.getSessionId().first()
+            val stationId = sessionManager.getStationId().first()
+            val transactionCode = _state.value.transactionCode
+
+            if (sessionId.isNullOrBlank() || stationId.isNullOrBlank() || transactionCode.isBlank()) {
+                return@launch
+            }
+
+            billingRepository.updateTransactionCustomer(
+                transactionId = transactionCode,
+                sessionId = sessionId,
+                workstationId = stationId,
+                customerId = customer.partyId,
+                customerIdType = customer.identificationType,
+                customerName = customer.name,
+                affiliateType = customer.affiliateType
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                    }
+                    is Resource.Success -> {
+                        Log.d(TAG, "Cliente actualizado exitosamente en la transacción")
+                    }
+                    is Resource.Error -> {
+                        Log.e(TAG, "Error al actualizar cliente: ${result.message}")
+                        // Opcionalmente mostrar error al usuario
+                    }
+                }
+            }
+        }
+    }
+
     private fun searchCustomer() {
         val query = _state.value.customerSearchQuery.trim()
         if (query.isBlank()) return
@@ -198,13 +241,83 @@ class BillingViewModel @Inject constructor(
     private fun startTransaction() {
         // Use default customer if none selected
         val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
+        val transactionCode = _state.value.transactionCode
 
-        // Just update state and navigate - transaction will be created when adding first article
-        _state.update {
-            it.copy(
-                selectedCustomer = customerToUse,
-                shouldNavigateToTransaction = true
-            )
+        if (transactionCode.isNotBlank()) {
+            viewModelScope.launch {
+                val sessionId = sessionManager.getSessionId().first()
+                val stationId = sessionManager.getStationId().first()
+
+                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(createTransactionError = "No hay sesión activa")
+                    }
+                    return@launch
+                }
+
+                _state.update { it.copy(isCreatingTransaction = true) }
+
+                billingRepository.updateTransactionCustomer(
+                    transactionId = transactionCode,
+                    sessionId = sessionId,
+                    workstationId = stationId,
+                    customerId = customerToUse.partyId,
+                    customerIdType = customerToUse.identificationType,
+                    customerName = customerToUse.name,
+                    affiliateType = customerToUse.affiliateType
+                ).collect { result ->
+                    when (result) {
+                        is Resource.Loading -> { }
+                        is Resource.Success -> {
+                            getTransactionDetailsAndNavigate(transactionCode, customerToUse)
+                        }
+                        is Resource.Error -> {
+                            _state.update {
+                                it.copy(
+                                    isCreatingTransaction = false,
+                                    createTransactionError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            _state.update {
+                it.copy(
+                    selectedCustomer = customerToUse,
+                    shouldNavigateToTransaction = true
+                )
+            }
+        }
+    }
+
+    private fun getTransactionDetailsAndNavigate(transactionCode: String, customer: Customer) {
+        viewModelScope.launch {
+            billingRepository.getTransactionDetails(transactionCode).collect { result ->
+                when (result) {
+                    is Resource.Loading -> { }
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(
+                                isCreatingTransaction = false,
+                                selectedCustomer = customer,
+                                invoiceData = result.data ?: InvoiceData(),
+                                shouldNavigateToTransaction = true
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isCreatingTransaction = false,
+                                selectedCustomer = customer,
+                                shouldNavigateToTransaction = true
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -232,13 +345,20 @@ class BillingViewModel @Inject constructor(
                 }
             }
 
+            val customerId = if (currentTransactionCode.isBlank()) selectedCustomer?.partyId?.toString() else null
+            val customerIdType = if (currentTransactionCode.isBlank()) selectedCustomer?.identificationType else null
+            val customerName = if (currentTransactionCode.isBlank()) selectedCustomer?.name else null
+
             billingRepository.addMaterial(
                 transactionId = currentTransactionCode,
                 itemPosId = articleId,
                 quantity = 1.0,
                 partyAffiliationTypeCode = selectedCustomer?.affiliateType,
                 sessionId = sessionId,
-                workstationId = workstationId
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {

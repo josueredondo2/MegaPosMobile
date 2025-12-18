@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -19,12 +21,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Liquor
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.MoneyOff
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -33,14 +42,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
@@ -51,6 +67,7 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 import java.text.NumberFormat
 import java.util.Locale
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TransactionScreen(
     viewModel: BillingViewModel = hiltViewModel(),
@@ -61,8 +78,31 @@ fun TransactionScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val numberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CR")).apply {
         maximumFractionDigits = 0
+    }
+
+    // Transaction menu state
+    var showTransactionMenu by remember { mutableStateOf(false) }
+    var showTodoDialog by remember { mutableStateOf(false) }
+    var todoDialogMessage by remember { mutableStateOf("") }
+
+    // Selected item state
+    var selectedItemId by remember { mutableStateOf<String?>(null) }
+
+    // TODO dialog
+    if (showTodoDialog) {
+        AlertDialog(
+            onDismissRequest = { showTodoDialog = false },
+            title = { Text("TODO") },
+            text = { Text(todoDialogMessage) },
+            confirmButton = {
+                TextButton(onClick = { showTodoDialog = false }) {
+                    Text("Aceptar")
+                }
+            }
+        )
     }
 
     // Error dialog for adding article
@@ -123,9 +163,12 @@ fun TransactionScreen(
                     .padding(horizontal = dimensions.horizontalPadding)
                     .padding(top = dimensions.spacerMedium),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                // Left column - Transaction info
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = "Tiquete: ${state.transactionCode.ifBlank { "---" }}",
                         fontSize = dimensions.fontSizeLarge,
@@ -140,20 +183,79 @@ fun TransactionScreen(
                     )
                 }
 
-                // Menu icon
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.List,
-                        contentDescription = "Menu",
-                        tint = Color.Black,
-                        modifier = Modifier.size(24.dp)
-                    )
+                // Right column - Transaction Menu
+                Box {
+                    IconButton(
+                        onClick = { showTransactionMenu = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = "Menú de transacción",
+                            tint = Color.Black,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showTransactionMenu,
+                        onDismissRequest = { showTransactionMenu = false }
+                    ) {
+                        val hasActiveTransaction = state.transactionCode.isNotBlank()
+
+                        DropdownMenuItem(
+                            text = { Text("Pausar Transacción") },
+                            enabled = hasActiveTransaction,
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Pausar Transacción\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Abortar Transacción") },
+                            enabled = hasActiveTransaction,
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Abortar Transacción\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Agregar Envases") },
+                            enabled = hasActiveTransaction,
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Agregar Envases\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cambiar Cant. Línea Select.") },
+                            enabled = hasActiveTransaction && selectedItemId != null,
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Cambiar Cant. Línea Select.\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Eliminar Línea Select.") },
+                            enabled = hasActiveTransaction && selectedItemId != null,
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Eliminar Línea Select.\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Mostrar Catálogo") },
+                            onClick = {
+                                showTransactionMenu = false
+                                todoDialogMessage = "Mostrar Catálogo\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
+                                showTodoDialog = true
+                            }
+                        )
+                    }
                 }
             }
 
@@ -169,10 +271,14 @@ fun TransactionScreen(
                 placeholder = { Text("Articulo") },
                 enabled = !state.isAddingArticle,
                 keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(
-                    onDone = { viewModel.onEvent(BillingEvent.AddArticle) }
+                    onDone = {
+                        keyboardController?.hide()
+                        viewModel.onEvent(BillingEvent.AddArticle)
+                    }
                 ),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -250,9 +356,74 @@ fun TransactionScreen(
                     .padding(horizontal = dimensions.horizontalPadding)
             ) {
                 items(state.invoiceData.items.filter { !it.isDeleted }) { item ->
-                    ItemRow(item = item, numberFormat = numberFormat)
+                    ItemRow(
+                        item = item,
+                        numberFormat = numberFormat,
+                        isSelected = selectedItemId == item.itemId,
+                        onClick = {
+                            selectedItemId = if (selectedItemId == item.itemId) null else item.itemId
+                        }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+
+            // Leyenda de iconos
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = dimensions.horizontalPadding)
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocalOffer,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = " Descuento",
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color(0xFF2196F3),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = " Patrocinador",
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.MoneyOff,
+                    contentDescription = null,
+                    tint = Color(0xFFFF9800),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = " Exento",
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Liquor,
+                    contentDescription = null,
+                    tint = Color(0xFF9C27B0),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = " Envase",
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
             }
 
             // Totals section
@@ -317,42 +488,107 @@ fun TransactionScreen(
 @Composable
 private fun ItemRow(
     item: InvoiceItem,
-    numberFormat: NumberFormat
+    numberFormat: NumberFormat,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {}
 ) {
     val dimensions = LocalDimensions.current
+    val hasIndicators = item.hasDiscount || item.isSponsor || item.isTaxExempt || item.hasPackaging
+    val backgroundColor = if (isSelected) Color(0xFFE3F2FD) else Color.Transparent
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .clickable { onClick() }
+            .padding(vertical = 4.dp, horizontal = 8.dp)
     ) {
-        Text(
-            text = item.itemName,
-            fontSize = dimensions.fontSizeMedium,
-            color = Color.Black,
-            modifier = Modifier.weight(2f)
-        )
-        Text(
-            text = item.quantity.toInt().toString(),
-            fontSize = dimensions.fontSizeMedium,
-            color = Color.Black,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = numberFormat.format(item.unitPrice),
-            fontSize = dimensions.fontSizeMedium,
-            color = Color.Black,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.End
-        )
-        Text(
-            text = numberFormat.format(item.total),
-            fontSize = dimensions.fontSizeMedium,
-            color = Color.Black,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.End
-        )
+        // Fila principal: nombre, cantidad, precio, total
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = item.itemName,
+                fontSize = dimensions.fontSizeMedium,
+                color = Color.Black,
+                modifier = Modifier.weight(2f)
+            )
+            Text(
+                text = item.quantity.toInt().toString(),
+                fontSize = dimensions.fontSizeMedium,
+                color = Color.Black,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = numberFormat.format(item.unitPrice),
+                fontSize = dimensions.fontSizeMedium,
+                color = Color.Black,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.End
+            )
+            Text(
+                text = numberFormat.format(item.total),
+                fontSize = dimensions.fontSizeMedium,
+                color = Color.Black,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.End
+            )
+        }
+
+        if (hasIndicators) {
+            Row(
+                modifier = Modifier.padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (item.hasDiscount) {
+                    Icon(
+                        imageVector = Icons.Default.LocalOffer,
+                        contentDescription = "Descuento",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "${item.discountPercentage.toInt()}%",
+                        color = Color(0xFF4CAF50),
+                        fontSize = 11.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                if (item.isSponsor) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Patrocinador",
+                        tint = Color(0xFF2196F3),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                if (item.isTaxExempt) {
+                    Icon(
+                        imageVector = Icons.Default.MoneyOff,
+                        contentDescription = "Exento",
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                if (item.hasPackaging) {
+                    Icon(
+                        imageVector = Icons.Default.Liquor,
+                        contentDescription = "Envase",
+                        tint = Color(0xFF9C27B0),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
