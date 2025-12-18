@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -85,20 +86,18 @@ fun TransactionScreen(
 
     // Transaction menu state
     var showTransactionMenu by remember { mutableStateOf(false) }
-    var showTodoDialog by remember { mutableStateOf(false) }
-    var todoDialogMessage by remember { mutableStateOf("") }
 
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
 
-    // TODO dialog
-    if (showTodoDialog) {
+    // TODO dialog (from state)
+    if (state.showTodoDialog) {
         AlertDialog(
-            onDismissRequest = { showTodoDialog = false },
+            onDismissRequest = { viewModel.onEvent(BillingEvent.DismissTodoDialog) },
             title = { Text("TODO") },
-            text = { Text(todoDialogMessage) },
+            text = { Text(state.todoDialogMessage) },
             confirmButton = {
-                TextButton(onClick = { showTodoDialog = false }) {
+                TextButton(onClick = { viewModel.onEvent(BillingEvent.DismissTodoDialog) }) {
                     Text("Aceptar")
                 }
             }
@@ -132,6 +131,20 @@ fun TransactionScreen(
             }
         )
     }
+
+    // Authorization Dialog
+    AuthorizationDialog(
+        state = state.authorizationDialogState,
+        onAuthorize = { userCode, password ->
+            viewModel.onEvent(BillingEvent.SubmitAuthorization(userCode, password))
+        },
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissAuthorizationDialog)
+        },
+        onClearError = {
+            viewModel.onEvent(BillingEvent.ClearAuthorizationError)
+        }
+    )
 
     Scaffold { paddingValues ->
         Column(
@@ -201,14 +214,14 @@ fun TransactionScreen(
                         onDismissRequest = { showTransactionMenu = false }
                     ) {
                         val hasActiveTransaction = state.transactionCode.isNotBlank()
+                        val selectedItem = state.invoiceData.items.find { it.itemId == selectedItemId }
 
                         DropdownMenuItem(
                             text = { Text("Pausar Transacción") },
                             enabled = hasActiveTransaction,
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Pausar Transacción\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                viewModel.onEvent(BillingEvent.RequestPauseTransaction)
                             }
                         )
                         DropdownMenuItem(
@@ -216,8 +229,7 @@ fun TransactionScreen(
                             enabled = hasActiveTransaction,
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Abortar Transacción\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                viewModel.onEvent(BillingEvent.RequestAbortTransaction)
                             }
                         )
                         DropdownMenuItem(
@@ -225,8 +237,7 @@ fun TransactionScreen(
                             enabled = hasActiveTransaction,
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Agregar Envases\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                viewModel.onEvent(BillingEvent.ShowTodoDialog("Agregar Envases\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"))
                             }
                         )
                         DropdownMenuItem(
@@ -234,8 +245,9 @@ fun TransactionScreen(
                             enabled = hasActiveTransaction && selectedItemId != null,
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Cambiar Cant. Línea Select.\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                selectedItem?.let { item ->
+                                    viewModel.onEvent(BillingEvent.RequestChangeQuantity(item.itemId, item.itemName))
+                                }
                             }
                         )
                         DropdownMenuItem(
@@ -243,16 +255,16 @@ fun TransactionScreen(
                             enabled = hasActiveTransaction && selectedItemId != null,
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Eliminar Línea Select.\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                selectedItem?.let { item ->
+                                    viewModel.onEvent(BillingEvent.RequestDeleteLine(item.itemId, item.itemName))
+                                }
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Mostrar Catálogo") },
                             onClick = {
                                 showTransactionMenu = false
-                                todoDialogMessage = "Mostrar Catálogo\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"
-                                showTodoDialog = true
+                                viewModel.onEvent(BillingEvent.ShowTodoDialog("Mostrar Catálogo\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"))
                             }
                         )
                     }

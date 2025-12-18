@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.data.remote.api
 
+import com.devlosoft.megaposmobile.data.remote.dto.GrantProcessExecRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.LoginRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.LoginResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.UserPermissionsDto
@@ -18,4 +19,7 @@ interface AuthApi {
 
     @GET("user-permissions")
     suspend fun getUserPermissions(): Response<UserPermissionsDto>
+
+    @POST("grant-process-exec")
+    suspend fun grantProcessExec(@Body request: GrantProcessExecRequestDto): Response<Boolean>
 }

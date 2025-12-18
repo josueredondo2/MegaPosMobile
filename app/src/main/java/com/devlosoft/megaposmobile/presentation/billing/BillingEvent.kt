@@ -31,4 +31,17 @@ sealed class BillingEvent {
     // Recovery check events
     data object CheckTransactionRecovery : BillingEvent()
     data object DismissRecoveryCheckError : BillingEvent()
+
+    // Authorization events
+    data class RequestDeleteLine(val itemId: String, val itemName: String) : BillingEvent()
+    data class RequestChangeQuantity(val itemId: String, val itemName: String) : BillingEvent()
+    data object RequestAbortTransaction : BillingEvent()
+    data object RequestPauseTransaction : BillingEvent()
+    data class SubmitAuthorization(val userCode: String, val password: String) : BillingEvent()
+    data object DismissAuthorizationDialog : BillingEvent()
+    data object ClearAuthorizationError : BillingEvent()
+
+    // TODO dialog events
+    data class ShowTodoDialog(val message: String) : BillingEvent()
+    data object DismissTodoDialog : BillingEvent()
 }

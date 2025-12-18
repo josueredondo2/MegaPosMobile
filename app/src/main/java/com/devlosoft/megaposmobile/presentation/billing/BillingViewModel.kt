@@ -7,11 +7,16 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.data.remote.api.AuthApi
+import com.devlosoft.megaposmobile.data.remote.dto.GrantProcessExecRequestDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
+import com.devlosoft.megaposmobile.util.TablaDesencriptado
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +31,8 @@ class BillingViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
     private val serverConfigDao: ServerConfigDao,
-    private val printerManager: PrinterManager
+    private val printerManager: PrinterManager,
+    private val authApi: AuthApi
 ) : ViewModel() {
 
     companion object {
@@ -37,7 +43,15 @@ class BillingViewModel @Inject constructor(
     val state: StateFlow<BillingState> = _state.asStateFlow()
 
     init {
+        loadUserPermissions()
         checkTransactionRecovery()
+    }
+
+    private fun loadUserPermissions() {
+        viewModelScope.launch {
+            val permissions = sessionManager.getUserPermissionsSync()
+            _state.update { it.copy(userPermissions = permissions) }
+        }
     }
 
     fun onEvent(event: BillingEvent) {
@@ -99,6 +113,43 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.DismissRecoveryCheckError -> {
                 _state.update { it.copy(recoveryCheckError = null) }
+            }
+            // Authorization events
+            is BillingEvent.RequestDeleteLine -> {
+                handleDeleteLineRequest(event.itemId, event.itemName)
+            }
+            is BillingEvent.RequestChangeQuantity -> {
+                handleChangeQuantityRequest(event.itemId, event.itemName)
+            }
+            is BillingEvent.RequestAbortTransaction -> {
+                handleAbortTransactionRequest()
+            }
+            is BillingEvent.RequestPauseTransaction -> {
+                handlePauseTransactionRequest()
+            }
+            is BillingEvent.SubmitAuthorization -> {
+                submitAuthorization(event.userCode, event.password)
+            }
+            is BillingEvent.DismissAuthorizationDialog -> {
+                _state.update {
+                    it.copy(
+                        authorizationDialogState = AuthorizationDialogState(),
+                        pendingAuthorizationAction = null
+                    )
+                }
+            }
+            is BillingEvent.ClearAuthorizationError -> {
+                _state.update {
+                    it.copy(
+                        authorizationDialogState = it.authorizationDialogState.copy(error = null)
+                    )
+                }
+            }
+            is BillingEvent.ShowTodoDialog -> {
+                _state.update { it.copy(showTodoDialog = true, todoDialogMessage = event.message) }
+            }
+            is BillingEvent.DismissTodoDialog -> {
+                _state.update { it.copy(showTodoDialog = false, todoDialogMessage = "") }
             }
         }
     }
@@ -543,5 +594,219 @@ class BillingViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Exception while printing: ${e.message}", e)
         }
+    }
+
+    // Authorization methods
+
+    private fun handleDeleteLineRequest(itemId: String, itemName: String) {
+        val permissions = _state.value.userPermissions
+        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ELIMINAR_LINEA) ?: false
+
+        if (hasAccess) {
+            // User has access, execute action directly
+            executeDeleteLine(itemId)
+        } else {
+            // User doesn't have access, show authorization dialog
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Eliminar Línea",
+                        message = "Para eliminar el articulo $itemName debe solicitar autorización",
+                        actionButtonText = "Eliminar Línea",
+                        processCode = UserPermissions.PROCESS_ELIMINAR_LINEA
+                    ),
+                    pendingAuthorizationAction = PendingAuthorizationAction.DeleteLine(itemId)
+                )
+            }
+        }
+    }
+
+    private fun handleChangeQuantityRequest(itemId: String, itemName: String) {
+        val permissions = _state.value.userPermissions
+        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO) ?: false
+
+        if (hasAccess) {
+            // User has access, execute action directly
+            executeChangeQuantity(itemId)
+        } else {
+            // User doesn't have access, show authorization dialog
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Cambiar Cantidad",
+                        message = "Para cambiar la cantidad del articulo $itemName debe solicitar autorización",
+                        actionButtonText = "Cambiar Cantidad",
+                        processCode = UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
+                    ),
+                    pendingAuthorizationAction = PendingAuthorizationAction.ChangeQuantity(itemId)
+                )
+            }
+        }
+    }
+
+    private fun handleAbortTransactionRequest() {
+        val permissions = _state.value.userPermissions
+        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ABORTAR_TRANSACCION) ?: false
+
+        if (hasAccess) {
+            // User has access, execute action directly
+            executeAbortTransaction()
+        } else {
+            // User doesn't have access, show authorization dialog
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Abortar Transacción",
+                        message = "Para abortar la transacción debe solicitar autorización",
+                        actionButtonText = "Abortar Transacción",
+                        processCode = UserPermissions.PROCESS_ABORTAR_TRANSACCION
+                    ),
+                    pendingAuthorizationAction = PendingAuthorizationAction.AbortTransaction
+                )
+            }
+        }
+    }
+
+    private fun handlePauseTransactionRequest() {
+        val permissions = _state.value.userPermissions
+        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_TRANSACCION_EN_ESPERA) ?: false
+
+        if (hasAccess) {
+            // User has access, execute action directly
+            executePauseTransaction()
+        } else {
+            // User doesn't have access, show authorization dialog
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Pausar Transacción",
+                        message = "Para pausar la transacción debe solicitar autorización",
+                        actionButtonText = "Pausar Transacción",
+                        processCode = UserPermissions.PROCESS_TRANSACCION_EN_ESPERA
+                    ),
+                    pendingAuthorizationAction = PendingAuthorizationAction.PauseTransaction
+                )
+            }
+        }
+    }
+
+    private fun submitAuthorization(userCode: String, password: String) {
+        val dialogState = _state.value.authorizationDialogState
+        val pendingAction = _state.value.pendingAuthorizationAction
+
+        if (pendingAction == null) {
+            Log.e(TAG, "No pending authorization action")
+            return
+        }
+
+        viewModelScope.launch {
+            // Show loading
+            _state.update {
+                it.copy(
+                    authorizationDialogState = dialogState.copy(isLoading = true, error = null)
+                )
+            }
+
+            try {
+                // Encrypt password using TablaDesencriptado (same as login)
+                val encryptedPassword = TablaDesencriptado.encrypt(password)
+
+                val request = GrantProcessExecRequestDto(
+                    userCode = userCode,
+                    userPassword = encryptedPassword,
+                    processCode = dialogState.processCode
+                )
+
+                val response = authApi.grantProcessExec(request)
+
+                if (response.isSuccessful && response.body() == true) {
+                    // Authorization successful - close dialog and execute pending action
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = AuthorizationDialogState(),
+                            pendingAuthorizationAction = null
+                        )
+                    }
+
+                    // Execute the pending action
+                    when (pendingAction) {
+                        is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
+                        is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
+                        is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction()
+                        is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
+                    }
+                } else {
+                    // Authorization failed
+                    val errorMessage = "Credenciales inválidas o sin permisos"
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = dialogState.copy(
+                                isLoading = false,
+                                error = errorMessage
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during authorization: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        authorizationDialogState = dialogState.copy(
+                            isLoading = false,
+                            error = "Error de conexión: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // TODO: Implement these action methods when the actual functionality is added
+    private fun executeDeleteLine(itemId: String) {
+        Log.d(TAG, "Executing delete line for item: $itemId")
+        _state.update {
+            it.copy(
+                showTodoDialog = true,
+                todoDialogMessage = "Eliminar Línea\nItem ID: $itemId"
+            )
+        }
+        // TODO: Implement delete line API call
+    }
+
+    private fun executeChangeQuantity(itemId: String) {
+        Log.d(TAG, "Executing change quantity for item: $itemId")
+        _state.update {
+            it.copy(
+                showTodoDialog = true,
+                todoDialogMessage = "Cambiar Cantidad\nItem ID: $itemId"
+            )
+        }
+        // TODO: Implement change quantity dialog/flow
+    }
+
+    private fun executeAbortTransaction() {
+        Log.d(TAG, "Executing abort transaction")
+        _state.update {
+            it.copy(
+                showTodoDialog = true,
+                todoDialogMessage = "Abortar Transacción"
+            )
+        }
+        // TODO: Implement abort transaction API call
+    }
+
+    private fun executePauseTransaction() {
+        Log.d(TAG, "Executing pause transaction")
+        _state.update {
+            it.copy(
+                showTodoDialog = true,
+                todoDialogMessage = "Pausar Transacción"
+            )
+        }
+        // TODO: Implement pause transaction API call
     }
 }

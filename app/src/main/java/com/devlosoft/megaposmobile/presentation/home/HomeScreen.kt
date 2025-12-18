@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -63,6 +64,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.setLogoutCallback(onLogout)
         viewModel.setNavigateToBillingCallback(onNavigateToBilling)
+        viewModel.setNavigateToProcessCallback(onNavigateToProcess)
     }
 
     // Todo Dialog
@@ -111,6 +113,20 @@ fun HomeScreen(
             }
         )
     }
+
+    // Authorization Dialog
+    AuthorizationDialog(
+        state = state.authorizationDialogState,
+        onAuthorize = { userCode, password ->
+            viewModel.onEvent(HomeEvent.SubmitAuthorization(userCode, password))
+        },
+        onDismiss = {
+            viewModel.onEvent(HomeEvent.DismissAuthorizationDialog)
+        },
+        onClearError = {
+            viewModel.onEvent(HomeEvent.ClearAuthorizationError)
+        }
+    )
 
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -186,13 +202,14 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Menu Cards - shown based on user permissions
+                    // Menu Cards - shown based on user permissions (show property)
+                    // onClick uses Request* events to validate access before executing
                     if (state.canOpenTerminal) {
                         MenuCard(
                             icon = Icons.Default.PhoneAndroid,
                             title = "Aperturar Terminal",
                             description = "Realiza la apertura para el dia.",
-                            onClick = { onNavigateToProcess("openTerminal") }
+                            onClick = { viewModel.onEvent(HomeEvent.RequestOpenTerminal) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
@@ -202,7 +219,7 @@ fun HomeScreen(
                             icon = Icons.Default.Lock,
                             title = "Cierre Terminal",
                             description = "Realiza el cierre para el dia incluyendo cierre del datafono",
-                            onClick = { onNavigateToProcess("closeTerminal") }
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseTerminal) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
@@ -212,7 +229,7 @@ fun HomeScreen(
                             icon = Icons.Default.Receipt,
                             title = "Cierre de datafono",
                             description = "Cerrar el lote de ventas del datafono.",
-                            onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseDatafono) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
@@ -223,7 +240,7 @@ fun HomeScreen(
                             title = "Facturación",
                             description = "Ingresa para facturar",
                             enabled = state.isStationOpen && !state.isCheckingPrinter,
-                            onClick = { viewModel.onEvent(HomeEvent.CheckPrinterAndNavigateToBilling) }
+                            onClick = { viewModel.onEvent(HomeEvent.RequestBilling) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
@@ -233,7 +250,7 @@ fun HomeScreen(
                             icon = Icons.Default.Receipt,
                             title = "Transacciones del dia",
                             description = "Ver transacciones realizadas durante el dia.",
-                            onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
+                            onClick = { viewModel.onEvent(HomeEvent.RequestViewTransactions) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }

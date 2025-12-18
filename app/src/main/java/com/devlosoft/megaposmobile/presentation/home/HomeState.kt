@@ -1,5 +1,8 @@
 package com.devlosoft.megaposmobile.presentation.home
 
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
+
 data class HomeState(
     val userName: String = "",
     val currentDate: String = "",
@@ -26,5 +29,23 @@ data class HomeState(
     val canCloseTerminal: Boolean = false,
     val canCloseDatafono: Boolean = false,
     val canBilling: Boolean = false,
-    val canViewTransactions: Boolean = false
+    val canViewTransactions: Boolean = false,
+
+    // User permissions for access validation
+    val userPermissions: UserPermissions? = null,
+
+    // Authorization dialog state
+    val authorizationDialogState: AuthorizationDialogState = AuthorizationDialogState(),
+    val pendingAuthorizationAction: HomePendingAction? = null
 )
+
+/**
+ * Represents an action that requires authorization in HomeScreen
+ */
+sealed class HomePendingAction {
+    data object OpenTerminal : HomePendingAction()
+    data object CloseTerminal : HomePendingAction()
+    data object CloseDatafono : HomePendingAction()
+    data object Billing : HomePendingAction()
+    data object ViewTransactions : HomePendingAction()
+}
