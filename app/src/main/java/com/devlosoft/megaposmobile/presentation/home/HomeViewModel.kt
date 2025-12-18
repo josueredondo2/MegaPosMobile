@@ -10,14 +10,12 @@ import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
-import com.devlosoft.megaposmobile.data.remote.api.AuthApi
-import com.devlosoft.megaposmobile.data.remote.dto.GrantProcessExecRequestDto
+import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
-import com.devlosoft.megaposmobile.util.TablaDesencriptado
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +37,7 @@ class HomeViewModel @Inject constructor(
     private val serverConfigDao: ServerConfigDao,
     private val stationStatus: StationStatus,
     private val printerManager: PrinterManager,
-    private val authApi: AuthApi
+    private val authorizeProcessUseCase: AuthorizeProcessUseCase
 ) : ViewModel() {
 
     companion object {
@@ -459,19 +457,8 @@ class HomeViewModel @Inject constructor(
                 )
             }
 
-            try {
-                // Encrypt password using TablaDesencriptado (same as login)
-                val encryptedPassword = TablaDesencriptado.encrypt(password)
-
-                val request = GrantProcessExecRequestDto(
-                    userCode = userCode,
-                    userPassword = encryptedPassword,
-                    processCode = dialogState.processCode
-                )
-
-                val response = authApi.grantProcessExec(request)
-
-                if (response.isSuccessful && response.body() == true) {
+            authorizeProcessUseCase(userCode, password, dialogState.processCode)
+                .onSuccess {
                     // Authorization successful - close dialog and execute pending action
                     _state.update {
                         it.copy(
@@ -481,36 +468,29 @@ class HomeViewModel @Inject constructor(
                     }
 
                     // Execute the pending action
-                    when (pendingAction) {
-                        is HomePendingAction.OpenTerminal -> onNavigateToProcessCallback?.invoke("openTerminal")
-                        is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
-                        is HomePendingAction.CloseDatafono -> showTodoDialog("Cierre de datafono")
-                        is HomePendingAction.Billing -> checkPrinterConnection()
-                        is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
-                    }
-                } else {
-                    // Authorization failed
-                    val errorMessage = "Credenciales inválidas o sin permisos"
+                    executePendingAction(pendingAction)
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Authorization failed: ${error.message}")
                     _state.update {
                         it.copy(
                             authorizationDialogState = dialogState.copy(
                                 isLoading = false,
-                                error = errorMessage
+                                error = error.message
                             )
                         )
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during authorization: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        authorizationDialogState = dialogState.copy(
-                            isLoading = false,
-                            error = "Error de conexión: ${e.message}"
-                        )
-                    )
-                }
-            }
+        }
+    }
+
+    private fun executePendingAction(pendingAction: HomePendingAction) {
+        when (pendingAction) {
+            is HomePendingAction.OpenTerminal -> onNavigateToProcessCallback?.invoke("openTerminal")
+            is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
+            is HomePendingAction.CloseDatafono -> showTodoDialog("Cierre de datafono")
+            is HomePendingAction.Billing -> checkPrinterConnection()
+            is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
         }
     }
 }

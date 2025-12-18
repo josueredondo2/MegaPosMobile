@@ -7,16 +7,14 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
-import com.devlosoft.megaposmobile.data.remote.api.AuthApi
-import com.devlosoft.megaposmobile.data.remote.dto.GrantProcessExecRequestDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
+import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
-import com.devlosoft.megaposmobile.util.TablaDesencriptado
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +30,7 @@ class BillingViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val serverConfigDao: ServerConfigDao,
     private val printerManager: PrinterManager,
-    private val authApi: AuthApi
+    private val authorizeProcessUseCase: AuthorizeProcessUseCase
 ) : ViewModel() {
 
     companion object {
@@ -711,19 +709,8 @@ class BillingViewModel @Inject constructor(
                 )
             }
 
-            try {
-                // Encrypt password using TablaDesencriptado (same as login)
-                val encryptedPassword = TablaDesencriptado.encrypt(password)
-
-                val request = GrantProcessExecRequestDto(
-                    userCode = userCode,
-                    userPassword = encryptedPassword,
-                    processCode = dialogState.processCode
-                )
-
-                val response = authApi.grantProcessExec(request)
-
-                if (response.isSuccessful && response.body() == true) {
+            authorizeProcessUseCase(userCode, password, dialogState.processCode)
+                .onSuccess {
                     // Authorization successful - close dialog and execute pending action
                     _state.update {
                         it.copy(
@@ -733,35 +720,28 @@ class BillingViewModel @Inject constructor(
                     }
 
                     // Execute the pending action
-                    when (pendingAction) {
-                        is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
-                        is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
-                        is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction()
-                        is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
-                    }
-                } else {
-                    // Authorization failed
-                    val errorMessage = "Credenciales inválidas o sin permisos"
+                    executePendingAction(pendingAction)
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Authorization failed: ${error.message}")
                     _state.update {
                         it.copy(
                             authorizationDialogState = dialogState.copy(
                                 isLoading = false,
-                                error = errorMessage
+                                error = error.message
                             )
                         )
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during authorization: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        authorizationDialogState = dialogState.copy(
-                            isLoading = false,
-                            error = "Error de conexión: ${e.message}"
-                        )
-                    )
-                }
-            }
+        }
+    }
+
+    private fun executePendingAction(pendingAction: PendingAuthorizationAction) {
+        when (pendingAction) {
+            is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
+            is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
+            is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction()
+            is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
         }
     }
 
