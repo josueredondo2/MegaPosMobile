@@ -41,7 +41,8 @@ interface TransactionApi {
     @GET("transaction/can-recover")
     suspend fun canRecoverTransaction(
         @Query("sessionId") sessionId: String,
-        @Query("workstationId") workstationId: String
+        @Query("workstationId") workstationId: String,
+        @Query("transactionId") transactionId: String? = null
     ): Response<CanRecoverTransactionResponseDto>
 
     @PUT("transaction/customer")

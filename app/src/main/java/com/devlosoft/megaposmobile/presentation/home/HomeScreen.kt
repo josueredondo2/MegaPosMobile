@@ -65,6 +65,7 @@ fun HomeScreen(
         viewModel.setLogoutCallback(onLogout)
         viewModel.setNavigateToBillingCallback(onNavigateToBilling)
         viewModel.setNavigateToProcessCallback(onNavigateToProcess)
+        viewModel.setNavigateToAdvancedOptionsCallback(onNavigateToAdvancedOptions)
     }
 
     // Todo Dialog
@@ -255,13 +256,15 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
 
-                    // Opciones Avanzadas - always visible (no permission validation yet)
-                    MenuCard(
-                        icon = Icons.Default.Settings,
-                        title = "Opciones Avanzadas",
-                        description = "Configurar impresora, datafono y otros dispositivos",
-                        onClick = { onNavigateToAdvancedOptions() }
-                    )
+                    if (state.canAdvancedOptions) {
+                        MenuCard(
+                            icon = Icons.Default.Settings,
+                            title = "Opciones Avanzadas",
+                            description = "Configurar impresora, datafono y otros dispositivos",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestAdvancedOptions) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
                 }

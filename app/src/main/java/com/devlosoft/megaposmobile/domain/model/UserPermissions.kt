@@ -42,9 +42,11 @@ data class UserPermissions(
         const val PROCESS_ELIMINAR_LINEA = "mobilePosEliminarLinea"
         const val PROCESS_ENVASES = "mobilePosEnvases"
         const val PROCESS_FACTURAR = "mobilePosFacturar"
+        const val PROCESS_OPCIONES_AVANZADAS = "mobilePosOpcionesAvanzadas"
         const val PROCESS_REIMPRESION = "mobilePosReimpresion"
         const val PROCESS_TRANSACCION = "mobilePosTransaccion"
         const val PROCESS_TRANSACCION_EN_ESPERA = "mobilePosTransaccionEnEspera"
+        const val PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO = "mobilePosAutorizarMaterialRestringido"
     }
 }
 

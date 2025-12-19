@@ -8,6 +8,8 @@ import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
+import com.devlosoft.megaposmobile.data.local.entity.ActiveTransactionEntity
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -21,7 +23,8 @@ import javax.inject.Inject
 
 class BillingRepositoryImpl @Inject constructor(
     private val customerApi: CustomerApi,
-    private val transactionApi: TransactionApi
+    private val transactionApi: TransactionApi,
+    private val activeTransactionDao: ActiveTransactionDao
 ) : BillingRepository {
 
     override suspend fun searchCustomer(identification: String): Flow<Resource<List<Customer>>> = flow {
@@ -53,7 +56,9 @@ class BillingRepositoryImpl @Inject constructor(
         workstationId: String?,
         customerId: String?,
         customerIdType: String?,
-        customerName: String?
+        customerName: String?,
+        isAuthorized: Boolean,
+        authorizedBy: String?
     ): Flow<Resource<AddMaterialResult>> = flow {
         emit(Resource.Loading())
         try {
@@ -66,7 +71,9 @@ class BillingRepositoryImpl @Inject constructor(
                 workstationId = workstationId,
                 customerId = customerId,
                 customerIdType = customerIdType,
-                customerName = customerName
+                customerName = customerName,
+                isAuthorized = isAuthorized,
+                authorizedBy = authorizedBy
             )
             val response = transactionApi.addMaterial(request)
             if (response.isSuccessful) {
@@ -81,7 +88,7 @@ class BillingRepositoryImpl @Inject constructor(
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)
                 val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
-                emit(Resource.Error(errorMessage))
+                emit(Resource.Error(errorMessage, errorCode = errorResponse?.errorCode))
             }
         } catch (e: IOException) {
             emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
@@ -163,13 +170,15 @@ class BillingRepositoryImpl @Inject constructor(
 
     override suspend fun canRecoverTransaction(
         sessionId: String,
-        workstationId: String
+        workstationId: String,
+        transactionId: String?
     ): Flow<Resource<TransactionRecoveryResult>> = flow {
         emit(Resource.Loading())
         try {
             val response = transactionApi.canRecoverTransaction(
                 sessionId = sessionId,
-                workstationId = workstationId
+                workstationId = workstationId,
+                transactionId = transactionId
             )
             if (response.isSuccessful) {
                 val result = response.body()?.toDomain()
@@ -281,5 +290,20 @@ class BillingRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             emit(Resource.Error("Error inesperado: ${e.message}"))
         }
+    }
+
+    // Active transaction persistence methods
+    override suspend fun saveActiveTransactionId(transactionId: String) {
+        activeTransactionDao.saveActiveTransaction(
+            ActiveTransactionEntity(transactionId = transactionId)
+        )
+    }
+
+    override suspend fun getActiveTransactionId(): String? {
+        return activeTransactionDao.getActiveTransaction()?.transactionId
+    }
+
+    override suspend fun clearActiveTransactionId() {
+        activeTransactionDao.clearActiveTransaction()
     }
 }

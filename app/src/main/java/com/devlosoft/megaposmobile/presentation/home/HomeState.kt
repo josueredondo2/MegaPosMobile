@@ -30,6 +30,7 @@ data class HomeState(
     val canCloseDatafono: Boolean = false,
     val canBilling: Boolean = false,
     val canViewTransactions: Boolean = false,
+    val canAdvancedOptions: Boolean = false,
 
     // User permissions for access validation
     val userPermissions: UserPermissions? = null,
@@ -48,4 +49,5 @@ sealed class HomePendingAction {
     data object CloseDatafono : HomePendingAction()
     data object Billing : HomePendingAction()
     data object ViewTransactions : HomePendingAction()
+    data object AdvancedOptions : HomePendingAction()
 }

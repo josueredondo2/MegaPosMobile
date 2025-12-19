@@ -19,7 +19,9 @@ interface BillingRepository {
         workstationId: String? = null,
         customerId: String? = null,
         customerIdType: String? = null,
-        customerName: String? = null
+        customerName: String? = null,
+        isAuthorized: Boolean = false,
+        authorizedBy: String? = null
     ): Flow<Resource<AddMaterialResult>>
     suspend fun finalizeTransaction(
         sessionId: String,
@@ -35,7 +37,8 @@ interface BillingRepository {
 
     suspend fun canRecoverTransaction(
         sessionId: String,
-        workstationId: String
+        workstationId: String,
+        transactionId: String? = null
     ): Flow<Resource<TransactionRecoveryResult>>
 
     suspend fun updateTransactionCustomer(
@@ -57,4 +60,9 @@ interface BillingRepository {
         sessionId: String,
         workstationId: String
     ): Flow<Resource<Boolean>>
+
+    // Active transaction persistence methods
+    suspend fun saveActiveTransactionId(transactionId: String)
+    suspend fun getActiveTransactionId(): String?
+    suspend fun clearActiveTransactionId()
 }

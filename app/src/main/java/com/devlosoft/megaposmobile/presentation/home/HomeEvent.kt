@@ -24,6 +24,7 @@ sealed class HomeEvent {
     data object RequestCloseDatafono : HomeEvent()
     data object RequestBilling : HomeEvent()
     data object RequestViewTransactions : HomeEvent()
+    data object RequestAdvancedOptions : HomeEvent()
     data class SubmitAuthorization(val userCode: String, val password: String) : HomeEvent()
     data object DismissAuthorizationDialog : HomeEvent()
     data object ClearAuthorizationError : HomeEvent()

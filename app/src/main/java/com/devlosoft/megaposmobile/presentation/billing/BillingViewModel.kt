@@ -194,7 +194,10 @@ class BillingViewModel @Inject constructor(
                 return@launch
             }
 
-            billingRepository.canRecoverTransaction(sessionId, stationId).collect { result ->
+            // Get saved transactionId from local database
+            val savedTransactionId = billingRepository.getActiveTransactionId()
+
+            billingRepository.canRecoverTransaction(sessionId, stationId, savedTransactionId).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
                         _state.update { it.copy(isCheckingRecovery = true) }
@@ -216,6 +219,10 @@ class BillingViewModel @Inject constructor(
                             }
                         } else {
                             // Can create new - normal flow
+                            // Clear local record if can't recover
+                            if (savedTransactionId != null) {
+                                billingRepository.clearActiveTransactionId()
+                            }
                             _state.update {
                                 it.copy(isCheckingRecovery = false)
                             }
@@ -430,6 +437,11 @@ class BillingViewModel @Inject constructor(
             val customerIdType = if (currentTransactionCode.isBlank()) selectedCustomer?.identificationType else null
             val customerName = if (currentTransactionCode.isBlank()) selectedCustomer?.name else null
 
+            // Check if current user has permission to authorize restricted materials
+            val permissions = _state.value.userPermissions
+            val canAuthorizeRestrictedMaterials = permissions?.hasAccess(UserPermissions.PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO) ?: false
+            val userCode = if (canAuthorizeRestrictedMaterials) sessionManager.getUserCode().first() else null
+
             billingRepository.addMaterial(
                 transactionId = currentTransactionCode,
                 itemPosId = articleId,
@@ -439,7 +451,9 @@ class BillingViewModel @Inject constructor(
                 workstationId = workstationId,
                 customerId = customerId,
                 customerIdType = customerIdType,
-                customerName = customerName
+                customerName = customerName,
+                isAuthorized = canAuthorizeRestrictedMaterials,
+                authorizedBy = userCode
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
@@ -452,6 +466,10 @@ class BillingViewModel @Inject constructor(
                     }
                     is Resource.Success -> {
                         val addResult = result.data!!
+                        // Save transactionId to local database if new transaction was created
+                        if (addResult.transactionId != null && _state.value.transactionCode.isBlank()) {
+                            billingRepository.saveActiveTransactionId(addResult.transactionId)
+                        }
                         _state.update {
                             it.copy(
                                 isAddingArticle = false,
@@ -464,15 +482,48 @@ class BillingViewModel @Inject constructor(
                         }
                     }
                     is Resource.Error -> {
-                        _state.update {
-                            it.copy(
-                                isAddingArticle = false,
-                                addArticleError = result.message
+                        if (result.errorCode == "ITEM_REQUIRES_AUTHORIZATION") {
+                            handleMaterialAuthorizationRequest(
+                                itemPosId = articleId,
+                                quantity = 1.0,
+                                partyAffiliationTypeCode = selectedCustomer?.affiliateType
                             )
+                        } else {
+                            _state.update {
+                                it.copy(
+                                    isAddingArticle = false,
+                                    addArticleError = result.message
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun handleMaterialAuthorizationRequest(
+        itemPosId: String,
+        quantity: Double,
+        partyAffiliationTypeCode: String?
+    ) {
+        _state.update {
+            it.copy(
+                isAddingArticle = false,
+                articleSearchQuery = "", // Limpiar el input
+                authorizationDialogState = AuthorizationDialogState(
+                    isVisible = true,
+                    title = "Artículo Restringido",
+                    message = "Este artículo requiere autorización para ser vendido",
+                    actionButtonText = "Autorizar",
+                    processCode = UserPermissions.PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO
+                ),
+                pendingAuthorizationAction = PendingAuthorizationAction.AuthorizeMaterial(
+                    itemPosId = itemPosId,
+                    quantity = quantity,
+                    partyAffiliationTypeCode = partyAffiliationTypeCode
+                )
+            )
         }
     }
 
@@ -520,6 +571,8 @@ class BillingViewModel @Inject constructor(
                         }
                         is Resource.Success -> {
                             Log.d(TAG, "Success! Now fetching print documents...")
+                            // Clear active transactionId from local database
+                            billingRepository.clearActiveTransactionId()
                             // Transaction finalized successfully, now fetch print documents
                             fetchAndPrintDocuments(transactionCode)
                         }
@@ -698,8 +751,8 @@ class BillingViewModel @Inject constructor(
                         )
                     }
 
-                    // Execute the pending action
-                    executePendingAction(pendingAction)
+                    // Execute the pending action, passing authorizedBy for material authorization
+                    executePendingAction(pendingAction, authorizedBy = userCode)
                 }
                 .onFailure { error ->
                     Log.e(TAG, "Authorization failed: ${error.message}")
@@ -715,12 +768,18 @@ class BillingViewModel @Inject constructor(
         }
     }
 
-    private fun executePendingAction(pendingAction: PendingAuthorizationAction) {
+    private fun executePendingAction(pendingAction: PendingAuthorizationAction, authorizedBy: String? = null) {
         when (pendingAction) {
             is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
             is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
             is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction()
             is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
+            is PendingAuthorizationAction.AuthorizeMaterial -> executeAddMaterialWithAuthorization(
+                itemPosId = pendingAction.itemPosId,
+                quantity = pendingAction.quantity,
+                partyAffiliationTypeCode = pendingAction.partyAffiliationTypeCode,
+                authorizedBy = authorizedBy
+            )
         }
     }
 
@@ -749,6 +808,10 @@ class BillingViewModel @Inject constructor(
 
     private fun executeAbortTransaction() {
         Log.d(TAG, "Executing abort transaction")
+        viewModelScope.launch {
+            // Clear active transactionId from local database when aborting
+            billingRepository.clearActiveTransactionId()
+        }
         _state.update {
             it.copy(
                 showTodoDialog = true,
@@ -756,6 +819,86 @@ class BillingViewModel @Inject constructor(
             )
         }
         // TODO: Implement abort transaction API call
+    }
+
+    private fun executeAddMaterialWithAuthorization(
+        itemPosId: String,
+        quantity: Double,
+        partyAffiliationTypeCode: String?,
+        authorizedBy: String?
+    ) {
+        Log.d(TAG, "Executing add material with authorization for item: $itemPosId, authorizedBy: $authorizedBy")
+        viewModelScope.launch {
+            val currentTransactionCode = _state.value.transactionCode
+
+            var sessionId: String? = null
+            var workstationId: String? = null
+
+            if (currentTransactionCode.isBlank()) {
+                sessionId = sessionManager.getSessionId().first()
+                workstationId = sessionManager.getStationId().first()
+
+                if (sessionId.isNullOrBlank() || workstationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(addArticleError = "No hay sesión activa")
+                    }
+                    return@launch
+                }
+            }
+
+            val selectedCustomer = _state.value.selectedCustomer
+            val customerId = if (currentTransactionCode.isBlank()) selectedCustomer?.partyId?.toString() else null
+            val customerIdType = if (currentTransactionCode.isBlank()) selectedCustomer?.identificationType else null
+            val customerName = if (currentTransactionCode.isBlank()) selectedCustomer?.name else null
+
+            billingRepository.addMaterial(
+                transactionId = currentTransactionCode,
+                itemPosId = itemPosId,
+                quantity = quantity,
+                partyAffiliationTypeCode = partyAffiliationTypeCode,
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                isAuthorized = true,
+                authorizedBy = authorizedBy
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update {
+                            it.copy(
+                                isAddingArticle = true,
+                                addArticleError = null
+                            )
+                        }
+                    }
+                    is Resource.Success -> {
+                        val addResult = result.data!!
+                        // Save transactionId to local database if new transaction was created
+                        if (addResult.transactionId != null && _state.value.transactionCode.isBlank()) {
+                            billingRepository.saveActiveTransactionId(addResult.transactionId)
+                        }
+                        _state.update {
+                            it.copy(
+                                isAddingArticle = false,
+                                transactionCode = addResult.transactionId ?: it.transactionCode,
+                                isTransactionCreated = addResult.transactionId != null || it.isTransactionCreated,
+                                invoiceData = addResult.invoiceData
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isAddingArticle = false,
+                                addArticleError = result.message
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun executePauseTransaction() {
@@ -814,6 +957,8 @@ class BillingViewModel @Inject constructor(
                         }
                         is Resource.Success -> {
                             Log.d(TAG, "Pause success! Printing receipt...")
+                            // Clear active transactionId from local database
+                            billingRepository.clearActiveTransactionId()
                             // Capture data before resetting state
                             val currentState = _state.value
                             val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.size

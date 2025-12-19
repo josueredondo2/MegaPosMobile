@@ -71,4 +71,9 @@ sealed class PendingAuthorizationAction {
     data class ChangeQuantity(val itemId: String) : PendingAuthorizationAction()
     data object AbortTransaction : PendingAuthorizationAction()
     data object PauseTransaction : PendingAuthorizationAction()
+    data class AuthorizeMaterial(
+        val itemPosId: String,
+        val quantity: Double,
+        val partyAffiliationTypeCode: String?
+    ) : PendingAuthorizationAction()
 }

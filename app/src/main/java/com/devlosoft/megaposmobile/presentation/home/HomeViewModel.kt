@@ -84,7 +84,8 @@ class HomeViewModel @Inject constructor(
                         canCloseTerminal = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_CAJA) ?: false,
                         canCloseDatafono = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false,
                         canBilling = permissions?.shouldShow(UserPermissions.PROCESS_FACTURAR) ?: false,
-                        canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false
+                        canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false,
+                        canAdvancedOptions = permissions?.shouldShow(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
                     )
                 }
             }
@@ -94,6 +95,7 @@ class HomeViewModel @Inject constructor(
     private var onLogoutCallback: (() -> Unit)? = null
     private var onNavigateToBillingCallback: (() -> Unit)? = null
     private var onNavigateToProcessCallback: ((String) -> Unit)? = null
+    private var onNavigateToAdvancedOptionsCallback: (() -> Unit)? = null
 
     fun setLogoutCallback(callback: () -> Unit) {
         onLogoutCallback = callback
@@ -105,6 +107,10 @@ class HomeViewModel @Inject constructor(
 
     fun setNavigateToProcessCallback(callback: (String) -> Unit) {
         onNavigateToProcessCallback = callback
+    }
+
+    fun setNavigateToAdvancedOptionsCallback(callback: () -> Unit) {
+        onNavigateToAdvancedOptionsCallback = callback
     }
 
     fun onEvent(event: HomeEvent) {
@@ -173,6 +179,9 @@ class HomeViewModel @Inject constructor(
             }
             is HomeEvent.RequestViewTransactions -> {
                 handleRequestViewTransactions()
+            }
+            is HomeEvent.RequestAdvancedOptions -> {
+                handleRequestAdvancedOptions()
             }
             is HomeEvent.SubmitAuthorization -> {
                 submitAuthorization(event.userCode, event.password)
@@ -440,6 +449,26 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private fun handleRequestAdvancedOptions() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
+        if (hasAccess) {
+            onNavigateToAdvancedOptionsCallback?.invoke()
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Opciones Avanzadas",
+                        message = "Para acceder a opciones avanzadas debe solicitar autorización",
+                        actionButtonText = "Acceder",
+                        processCode = UserPermissions.PROCESS_OPCIONES_AVANZADAS
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.AdvancedOptions
+                )
+            }
+        }
+    }
+
     private fun submitAuthorization(userCode: String, password: String) {
         val dialogState = _state.value.authorizationDialogState
         val pendingAction = _state.value.pendingAuthorizationAction
@@ -491,6 +520,7 @@ class HomeViewModel @Inject constructor(
             is HomePendingAction.CloseDatafono -> showTodoDialog("Cierre de datafono")
             is HomePendingAction.Billing -> checkPrinterConnection()
             is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
+            is HomePendingAction.AdvancedOptions -> onNavigateToAdvancedOptionsCallback?.invoke()
         }
     }
 }
