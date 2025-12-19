@@ -1,12 +1,14 @@
 package com.devlosoft.megaposmobile.presentation.advancedoptions
 
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
+import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
 
 data class AdvancedOptionsState(
     // Configuration fields
     val hostname: String = "",
     val datafonUrl: String = "",
+    val datafonoProvider: DatafonoProvider = DatafonoProvider.BAC,
     val printerIp: String = "",
 
     // Printer model

@@ -48,7 +48,19 @@ data class BillingState(
 
     // TODO dialog state (for unimplemented features)
     val showTodoDialog: Boolean = false,
-    val todoDialogMessage: String = ""
+    val todoDialogMessage: String = "",
+
+    // Pause transaction state
+    val showPauseConfirmDialog: Boolean = false,
+    val isPausingTransaction: Boolean = false,
+    val pauseTransactionError: String? = null,
+    val shouldNavigateAfterPause: Boolean = false,
+
+    // Print error state (for pause receipt)
+    val showPrintErrorDialog: Boolean = false,
+    val printErrorMessage: String? = null,
+    val pendingPrintText: String? = null,
+    val isPrinting: Boolean = false
 )
 
 /**

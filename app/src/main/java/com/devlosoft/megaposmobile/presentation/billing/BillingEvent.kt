@@ -44,4 +44,15 @@ sealed class BillingEvent {
     // TODO dialog events
     data class ShowTodoDialog(val message: String) : BillingEvent()
     data object DismissTodoDialog : BillingEvent()
+
+    // Pause transaction events
+    data object DismissPauseConfirmDialog : BillingEvent()
+    data object ConfirmPauseTransaction : BillingEvent()
+    data object DismissPauseTransactionError : BillingEvent()
+    data object PauseNavigationHandled : BillingEvent()
+
+    // Print error events (pause receipt)
+    data object RetryPrint : BillingEvent()
+    data object SkipPrint : BillingEvent()
+    data object DismissPrintErrorDialog : BillingEvent()
 }

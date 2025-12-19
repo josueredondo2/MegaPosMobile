@@ -1,9 +1,12 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
+import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -28,7 +31,9 @@ class BillingViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val authorizeProcessUseCase: AuthorizeProcessUseCase,
     private val printDocumentsUseCase: PrintDocumentsUseCase,
-    private val getSessionInfoUseCase: GetSessionInfoUseCase
+    private val getSessionInfoUseCase: GetSessionInfoUseCase,
+    private val printerManager: PrinterManager,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     companion object {
@@ -38,9 +43,15 @@ class BillingViewModel @Inject constructor(
     private val _state = MutableStateFlow(BillingState())
     val state: StateFlow<BillingState> = _state.asStateFlow()
 
+    // Check if we should skip recovery check (coming from completed transaction)
+    private val skipRecoveryCheck: Boolean = savedStateHandle.get<Boolean>("skipRecoveryCheck") ?: false
+
     init {
         loadUserPermissions()
-        checkTransactionRecovery()
+        // Only check for transaction recovery if not skipped
+        if (!skipRecoveryCheck) {
+            checkTransactionRecovery()
+        }
     }
 
     private fun loadUserPermissions() {
@@ -146,6 +157,29 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.DismissTodoDialog -> {
                 _state.update { it.copy(showTodoDialog = false, todoDialogMessage = "") }
+            }
+            // Pause transaction events
+            is BillingEvent.DismissPauseConfirmDialog -> {
+                _state.update { it.copy(showPauseConfirmDialog = false) }
+            }
+            is BillingEvent.ConfirmPauseTransaction -> {
+                confirmPauseTransaction()
+            }
+            is BillingEvent.DismissPauseTransactionError -> {
+                _state.update { it.copy(pauseTransactionError = null) }
+            }
+            is BillingEvent.PauseNavigationHandled -> {
+                _state.update { it.copy(shouldNavigateAfterPause = false) }
+            }
+            // Print error events
+            is BillingEvent.RetryPrint -> {
+                retryPrint()
+            }
+            is BillingEvent.SkipPrint -> {
+                skipPrint()
+            }
+            is BillingEvent.DismissPrintErrorDialog -> {
+                _state.update { it.copy(showPrintErrorDialog = false, printErrorMessage = null) }
             }
         }
     }
@@ -725,13 +759,228 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun executePauseTransaction() {
-        Log.d(TAG, "Executing pause transaction")
+        Log.d(TAG, "Executing pause transaction - showing confirmation dialog")
+        _state.update { it.copy(showPauseConfirmDialog = true) }
+    }
+
+    private fun confirmPauseTransaction() {
+        Log.d(TAG, "confirmPauseTransaction() called")
+        val transactionCode = _state.value.transactionCode
+        if (transactionCode.isBlank()) {
+            Log.e(TAG, "No transaction code")
+            _state.update {
+                it.copy(
+                    showPauseConfirmDialog = false,
+                    pauseTransactionError = "No hay transacción activa"
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Getting session data for pause...")
+                val sessionId = sessionManager.getSessionId().first()
+                val stationId = sessionManager.getStationId().first()
+                Log.d(TAG, "Session: $sessionId, Station: $stationId")
+
+                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(
+                            showPauseConfirmDialog = false,
+                            pauseTransactionError = "No hay sesión activa"
+                        )
+                    }
+                    return@launch
+                }
+
+                Log.d(TAG, "Calling billingRepository.pauseTransaction...")
+                billingRepository.pauseTransaction(
+                    transactionId = transactionCode,
+                    sessionId = sessionId,
+                    workstationId = stationId
+                ).collect { result ->
+                    Log.d(TAG, "Pause result received: $result")
+                    when (result) {
+                        is Resource.Loading -> {
+                            Log.d(TAG, "Pause loading...")
+                            _state.update {
+                                it.copy(
+                                    isPausingTransaction = true,
+                                    showPauseConfirmDialog = false,
+                                    pauseTransactionError = null
+                                )
+                            }
+                        }
+                        is Resource.Success -> {
+                            Log.d(TAG, "Pause success! Printing receipt...")
+                            // Capture data before resetting state
+                            val currentState = _state.value
+                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.size
+                            val subtotal = currentState.invoiceData.totals.subTotal
+                            val customerIdentification = currentState.selectedCustomer?.identification ?: "N/A"
+                            val txnId = currentState.transactionCode
+
+                            // Get user name and print
+                            printPauseReceipt(
+                                transactionId = txnId,
+                                totalItems = totalItems,
+                                subtotal = subtotal,
+                                customerIdentification = customerIdentification
+                            )
+                        }
+                        is Resource.Error -> {
+                            Log.e(TAG, "Pause error: ${result.message}")
+                            _state.update {
+                                it.copy(
+                                    isPausingTransaction = false,
+                                    pauseTransactionError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in confirmPauseTransaction: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isPausingTransaction = false,
+                        showPauseConfirmDialog = false,
+                        pauseTransactionError = "Error: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    // Print methods for pause receipt
+
+    private fun printPauseReceipt(
+        transactionId: String,
+        totalItems: Int,
+        subtotal: Double,
+        customerIdentification: String
+    ) {
+        viewModelScope.launch {
+            try {
+                val userName = sessionManager.getUserName().first() ?: "Usuario"
+                Log.d(TAG, "Printing pause receipt for user: $userName")
+
+                val printText = LocalPrintTemplates.buildPendingTransactionReceipt(
+                    userName = userName,
+                    totalItems = totalItems,
+                    subtotal = subtotal,
+                    transactionId = transactionId,
+                    customerIdentification = customerIdentification
+                )
+
+                _state.update {
+                    it.copy(
+                        isPausingTransaction = false,
+                        isPrinting = true,
+                        pendingPrintText = printText
+                    )
+                }
+
+                printerManager.printText(printText)
+                    .onSuccess {
+                        Log.d(TAG, "Pause receipt printed successfully")
+                        // Reset transaction state and navigate
+                        _state.update {
+                            it.copy(
+                                isPrinting = false,
+                                pendingPrintText = null,
+                                shouldNavigateAfterPause = true,
+                                transactionCode = "",
+                                isTransactionCreated = false,
+                                invoiceData = InvoiceData(),
+                                selectedCustomer = null
+                            )
+                        }
+                    }
+                    .onFailure { error ->
+                        Log.e(TAG, "Failed to print pause receipt: ${error.message}")
+                        _state.update {
+                            it.copy(
+                                isPrinting = false,
+                                showPrintErrorDialog = true,
+                                printErrorMessage = error.message ?: "Error al imprimir"
+                            )
+                        }
+                    }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception printing pause receipt: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isPrinting = false,
+                        isPausingTransaction = false,
+                        showPrintErrorDialog = true,
+                        printErrorMessage = "Error: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun retryPrint() {
+        val printText = _state.value.pendingPrintText
+        if (printText.isNullOrBlank()) {
+            Log.e(TAG, "No pending print text to retry")
+            skipPrint()
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    showPrintErrorDialog = false,
+                    printErrorMessage = null,
+                    isPrinting = true
+                )
+            }
+
+            printerManager.printText(printText)
+                .onSuccess {
+                    Log.d(TAG, "Retry print successful")
+                    _state.update {
+                        it.copy(
+                            isPrinting = false,
+                            pendingPrintText = null,
+                            shouldNavigateAfterPause = true,
+                            transactionCode = "",
+                            isTransactionCreated = false,
+                            invoiceData = InvoiceData(),
+                            selectedCustomer = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Retry print failed: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            isPrinting = false,
+                            showPrintErrorDialog = true,
+                            printErrorMessage = error.message ?: "Error al imprimir"
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun skipPrint() {
+        Log.d(TAG, "Skipping print, navigating to billing")
         _state.update {
             it.copy(
-                showTodoDialog = true,
-                todoDialogMessage = "Pausar Transacción"
+                showPrintErrorDialog = false,
+                printErrorMessage = null,
+                pendingPrintText = null,
+                isPrinting = false,
+                shouldNavigateAfterPause = true,
+                transactionCode = "",
+                isTransactionCreated = false,
+                invoiceData = InvoiceData(),
+                selectedCustomer = null
             )
         }
-        // TODO: Implement pause transaction API call
     }
 }

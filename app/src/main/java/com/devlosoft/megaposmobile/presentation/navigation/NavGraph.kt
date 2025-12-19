@@ -67,7 +67,7 @@ fun NavGraph(
                     navController.navigate(Screen.Process.createRoute(processType))
                 },
                 onNavigateToBilling = {
-                    navController.navigate(Screen.Billing.route)
+                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = false))
                 },
                 onNavigateToAdvancedOptions = {
                     navController.navigate(Screen.AdvancedOptions.route)
@@ -91,7 +91,15 @@ fun NavGraph(
         }
 
         // Billing flow - share ViewModel between screens
-        composable(route = Screen.Billing.route) { backStackEntry ->
+        composable(
+            route = Screen.Billing.route,
+            arguments = listOf(
+                navArgument("skipRecoveryCheck") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
             // Use the backStackEntry parameter directly instead of getBackStackEntry
             // to avoid crashes during navigation transitions
             val billingViewModel: BillingViewModel = hiltViewModel(backStackEntry)
@@ -129,7 +137,7 @@ fun NavGraph(
             // If billing entry doesn't exist, navigate back
             if (billingEntry == null) {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
-                    navController.navigate(Screen.Billing.route) {
+                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = false)) {
                         popUpTo(Screen.Home.route) { inclusive = false }
                     }
                 }
@@ -178,12 +186,13 @@ fun NavGraph(
                 processType = "payment",
                 viewModel = processViewModel,
                 onBack = {
-                    // Navigate back to Billing screen for a new transaction
-                    navController.navigate(Screen.Billing.route) {
+                    // Navigate to Billing for new transaction, skipping recovery check
+                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = true)) {
                         popUpTo(Screen.Home.route) { inclusive = false }
                     }
                 },
-                autoStartProcess = false
+                autoStartProcess = false,
+                successButtonText = "Nueva transacción"
             )
         }
     }

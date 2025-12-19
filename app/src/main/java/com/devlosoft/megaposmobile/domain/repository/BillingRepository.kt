@@ -51,4 +51,10 @@ interface BillingRepository {
     suspend fun getTransactionDetails(
         transactionId: String
     ): Flow<Resource<InvoiceData>>
+
+    suspend fun pauseTransaction(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String
+    ): Flow<Resource<Boolean>>
 }

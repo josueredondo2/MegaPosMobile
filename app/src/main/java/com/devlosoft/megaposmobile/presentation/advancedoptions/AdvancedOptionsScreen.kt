@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
+import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
@@ -217,6 +218,17 @@ fun AdvancedOptionsScreen(
                         keyboardActions = KeyboardActions(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         )
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Datafono Provider Dropdown
+                    DatafonoProviderSelector(
+                        selectedProvider = state.datafonoProvider,
+                        onProviderSelected = { provider ->
+                            viewModel.onEvent(AdvancedOptionsEvent.DatafonoProviderChanged(provider))
+                        },
+                        enabled = !state.isLoading
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
@@ -517,6 +529,75 @@ private fun BluetoothPrinterSelector(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DatafonoProviderSelector(
+    selectedProvider: DatafonoProvider,
+    onProviderSelected: (DatafonoProvider) -> Unit,
+    enabled: Boolean
+) {
+    val dimensions = LocalDimensions.current
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Proveedor de Datafono",
+            fontSize = dimensions.fontSizeMedium,
+            color = Color.Black,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled) { expanded = true }
+        ) {
+            OutlinedTextField(
+                value = selectedProvider.displayName,
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false,
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Dropdown"
+                    )
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MegaSuperRed,
+                    cursorColor = MegaSuperRed,
+                    disabledBorderColor = Color.Gray,
+                    disabledTextColor = Color.Black
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = dimensions.fontSizeMedium
+                )
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            DatafonoProvider.entries.forEach { provider ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = provider.displayName,
+                            fontWeight = if (provider == selectedProvider) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onProviderSelected(provider)
+                        expanded = false
+                    }
+                )
             }
         }
     }

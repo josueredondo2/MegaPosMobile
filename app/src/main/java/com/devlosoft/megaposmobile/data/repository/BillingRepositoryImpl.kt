@@ -6,6 +6,7 @@ import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
@@ -235,6 +236,40 @@ class BillingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 val invoiceData = response.body()?.toDomain() ?: InvoiceData()
                 emit(Resource.Success(invoiceData))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun pauseTransaction(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = PauseTransactionRequestDto(
+                transactionId = transactionId,
+                sessionId = sessionId,
+                workstationId = workstationId
+            )
+            val response = transactionApi.pauseTransaction(request)
+            if (response.isSuccessful) {
+                val success = response.body()?.success ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    val message = response.body()?.message ?: "Error al pausar transacción"
+                    emit(Resource.Error(message))
+                }
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

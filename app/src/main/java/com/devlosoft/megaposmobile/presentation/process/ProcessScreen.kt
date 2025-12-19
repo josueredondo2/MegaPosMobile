@@ -51,7 +51,8 @@ fun ProcessScreen(
     processType: String,
     viewModel: ProcessViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    autoStartProcess: Boolean = true
+    autoStartProcess: Boolean = true,
+    successButtonText: String = "Volver a menu"
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -98,7 +99,8 @@ fun ProcessScreen(
                         is ProcessStatus.Success -> {
                             SuccessContent(
                                 message = status.message,
-                                onBackClick = onBack
+                                onBackClick = onBack,
+                                buttonText = successButtonText
                             )
                         }
                         is ProcessStatus.Error -> {
@@ -147,7 +149,8 @@ private fun LoadingContent(message: String) {
 @Composable
 private fun SuccessContent(
     message: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    buttonText: String = "Volver a menu"
 ) {
     val dimensions = LocalDimensions.current
 
@@ -176,7 +179,7 @@ private fun SuccessContent(
 
         Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
 
-        // Back to menu button
+        // Action button
         Button(
             onClick = onBackClick,
             modifier = Modifier
@@ -188,7 +191,7 @@ private fun SuccessContent(
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = "Volver a menu",
+                text = buttonText,
                 fontSize = dimensions.fontSizeExtraLarge,
                 fontWeight = FontWeight.Medium,
                 color = MegaSuperWhite

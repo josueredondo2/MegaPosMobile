@@ -40,6 +40,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
+import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
+import com.devlosoft.megaposmobile.presentation.shared.components.ErrorDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -145,6 +148,73 @@ fun TransactionScreen(
             viewModel.onEvent(BillingEvent.ClearAuthorizationError)
         }
     )
+
+    // Pause Confirmation Dialog
+    ConfirmDialog(
+        isVisible = state.showPauseConfirmDialog,
+        title = "Confirmar Solicitud",
+        message = "Seguro que desea pausar la transacción?\n\nPuede ser recuperada en otra estacion de trabajo.",
+        confirmText = "Pausar",
+        dismissText = "Aun no, volver",
+        confirmColor = MegaSuperRed,
+        onConfirm = {
+            viewModel.onEvent(BillingEvent.ConfirmPauseTransaction)
+        },
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissPauseConfirmDialog)
+        }
+    )
+
+    // Pause Transaction Error Dialog
+    ErrorDialog(
+        message = state.pauseTransactionError,
+        title = "Error al Pausar",
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissPauseTransactionError)
+        }
+    )
+
+    // Print Error Dialog with Retry/Skip options
+    if (state.showPrintErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(BillingEvent.DismissPrintErrorDialog) },
+            title = {
+                Text(
+                    text = "Error de Impresión",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = state.printErrorMessage ?: "No se pudo imprimir el comprobante",
+                    fontSize = 14.sp,
+                    color = Color.DarkGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(BillingEvent.RetryPrint) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MegaSuperRed),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Reintentar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(BillingEvent.SkipPrint) }) {
+                    Text("Continuar sin imprimir")
+                }
+            }
+        )
+    }
+
+    // Handle navigation after successful pause
+    LaunchedEffect(state.shouldNavigateAfterPause) {
+        if (state.shouldNavigateAfterPause) {
+            viewModel.onEvent(BillingEvent.PauseNavigationHandled)
+            onBack()
+        }
+    }
 
     Scaffold { paddingValues ->
         Column(

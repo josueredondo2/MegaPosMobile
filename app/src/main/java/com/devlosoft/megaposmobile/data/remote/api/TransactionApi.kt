@@ -6,6 +6,8 @@ import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponse
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.InvoiceDataDto
+import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import retrofit2.Response
@@ -51,4 +53,9 @@ interface TransactionApi {
     suspend fun getTransactionDetails(
         @Path("transactionId") transactionId: String
     ): Response<InvoiceDataDto>
+
+    @POST("transaction/pause")
+    suspend fun pauseTransaction(
+        @Body request: PauseTransactionRequestDto
+    ): Response<PauseTransactionResponseDto>
 }

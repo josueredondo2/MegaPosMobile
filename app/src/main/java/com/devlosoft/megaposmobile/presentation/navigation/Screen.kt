@@ -5,7 +5,9 @@ sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object Configuration : Screen("configuration")
     data object AdvancedOptions : Screen("advanced-options")
-    data object Billing : Screen("billing")
+    data object Billing : Screen("billing?skipRecoveryCheck={skipRecoveryCheck}") {
+        fun createRoute(skipRecoveryCheck: Boolean = false) = "billing?skipRecoveryCheck=$skipRecoveryCheck"
+    }
     data object TransactionDetail : Screen("transaction-detail")
     data object Customer : Screen("customer/{identification}") {
         fun createRoute(identification: String) = "customer/$identification"
