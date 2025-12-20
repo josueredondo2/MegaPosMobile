@@ -9,7 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import androidx.navigation.toRoute
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.devlosoft.megaposmobile.presentation.advancedoptions.AdvancedOptionsScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingViewModel

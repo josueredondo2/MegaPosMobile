@@ -36,7 +36,7 @@ object DatabaseModule {
                 // En RELEASE: la app crasheará si falta una migración (esto es intencional
                 // para detectar errores antes de publicar)
                 if (BuildConfig.DEBUG) {
-                    fallbackToDestructiveMigration()
+                    fallbackToDestructiveMigration(dropAllTables = true)
                 }
             }
             .build()
