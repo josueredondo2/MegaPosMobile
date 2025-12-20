@@ -58,6 +58,15 @@ sealed class BillingEvent {
     data object DismissAbortTransactionError : BillingEvent()
     data object AbortNavigationHandled : BillingEvent()
 
+    // Delete line events
+    data object DismissDeleteLineError : BillingEvent()
+
+    // Change quantity events
+    data class ChangeQuantityValueChanged(val value: String) : BillingEvent()
+    data object ConfirmChangeQuantity : BillingEvent()
+    data object DismissChangeQuantityDialog : BillingEvent()
+    data object DismissChangeQuantityError : BillingEvent()
+
     // Print error events (pause receipt)
     data object RetryPrint : BillingEvent()
     data object SkipPrint : BillingEvent()

@@ -41,7 +41,8 @@ class AuthRepositoryImpl @Inject constructor(
                         accessToken = token.accessToken,
                         userCode = jwtPayload?.userCode ?: code,
                         userName = jwtPayload?.userName,
-                        sessionId = jwtPayload?.sessionId
+                        sessionId = jwtPayload?.sessionId,
+                        businessUnitName = jwtPayload?.businessUnitName
                     )
 
                     // Fetch and save user permissions after successful login

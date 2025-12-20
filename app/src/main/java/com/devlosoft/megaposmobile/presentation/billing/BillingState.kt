@@ -64,6 +64,21 @@ data class BillingState(
     val abortTransactionError: String? = null,
     val shouldNavigateAfterAbort: Boolean = false,
 
+    // Delete line state
+    val isDeletingLine: Boolean = false,
+    val deleteLineError: String? = null,
+
+    // Change quantity state
+    val showChangeQuantityDialog: Boolean = false,
+    val changeQuantityItemId: String = "",
+    val changeQuantityItemName: String = "",
+    val changeQuantityLineNumber: Int = 0,
+    val changeQuantityCurrentQty: Double = 0.0,
+    val changeQuantityNewQty: String = "",
+    val changeQuantityAuthorizedBy: String? = null, // Stores who authorized (user or authorizer)
+    val isChangingQuantity: Boolean = false,
+    val changeQuantityError: String? = null,
+
     // Print error state (for pause receipt)
     val showPrintErrorDialog: Boolean = false,
     val printErrorMessage: String? = null,
@@ -76,7 +91,11 @@ data class BillingState(
  */
 sealed class PendingAuthorizationAction {
     data class DeleteLine(val itemId: String) : PendingAuthorizationAction()
-    data class ChangeQuantity(val itemId: String) : PendingAuthorizationAction()
+    data class ChangeQuantity(
+        val itemId: String,
+        val lineNumber: Int,
+        val newQuantity: Double
+    ) : PendingAuthorizationAction()
     data object AbortTransaction : PendingAuthorizationAction()
     data object PauseTransaction : PendingAuthorizationAction()
     data class AuthorizeMaterial(

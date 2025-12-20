@@ -69,6 +69,24 @@ interface BillingRepository {
         authorizingOperator: String
     ): Flow<Resource<Boolean>>
 
+    suspend fun voidItem(
+        transactionId: String,
+        itemPosId: String,
+        authorizedOperator: String,
+        affiliateType: String,
+        deleteAll: Boolean
+    ): Flow<Resource<Boolean>>
+
+    suspend fun changeQuantity(
+        transactionId: String,
+        itemPosId: String,
+        lineNumber: Int,
+        newQuantity: Double,
+        partyAffiliationTypeCode: String,
+        isAuthorized: Boolean,
+        authorizedBy: String?
+    ): Flow<Resource<InvoiceData>>
+
     // Active transaction persistence methods
     suspend fun saveActiveTransactionId(transactionId: String)
     suspend fun getActiveTransactionId(): String?

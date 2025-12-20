@@ -63,6 +63,7 @@ import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AbortConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
+import com.devlosoft.megaposmobile.presentation.shared.components.ChangeQuantityDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ErrorDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
@@ -181,6 +182,35 @@ fun TransactionScreen(
         title = "Error al Abortar",
         onDismiss = {
             viewModel.onEvent(BillingEvent.DismissAbortTransactionError)
+        }
+    )
+
+    // Delete Line Error Dialog
+    ErrorDialog(
+        message = state.deleteLineError,
+        title = "Error al Eliminar",
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissDeleteLineError)
+        }
+    )
+
+    // Change Quantity Dialog
+    ChangeQuantityDialog(
+        isVisible = state.showChangeQuantityDialog,
+        itemName = state.changeQuantityItemName,
+        newQuantity = state.changeQuantityNewQty,
+        onQuantityChange = { viewModel.onEvent(BillingEvent.ChangeQuantityValueChanged(it)) },
+        onConfirm = { viewModel.onEvent(BillingEvent.ConfirmChangeQuantity) },
+        onDismiss = { viewModel.onEvent(BillingEvent.DismissChangeQuantityDialog) },
+        isLoading = state.isChangingQuantity
+    )
+
+    // Change Quantity Error Dialog
+    ErrorDialog(
+        message = state.changeQuantityError,
+        title = "Error al Cambiar Cantidad",
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissChangeQuantityError)
         }
     )
 

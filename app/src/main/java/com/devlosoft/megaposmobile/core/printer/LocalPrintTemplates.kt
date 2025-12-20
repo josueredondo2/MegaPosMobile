@@ -31,6 +31,7 @@ object LocalPrintTemplates {
      * @param subtotal Subtotal de la transacción
      * @param transactionId ID de la transacción
      * @param customerIdentification Cédula/identificación del cliente
+     * @param businessUnitName Nombre de la unidad de negocio
      * @return Texto formateado listo para impresión
      */
     fun buildPendingTransactionReceipt(
@@ -38,14 +39,15 @@ object LocalPrintTemplates {
         totalItems: Int,
         subtotal: Double,
         transactionId: String,
-        customerIdentification: String
+        customerIdentification: String,
+        businessUnitName: String = "Megasuper"
     ): String {
         val currentDateTime = dateFormat.format(Date())
         val formattedSubtotal = currencyFormat.format(subtotal)
 
         return buildString {
             // Encabezado
-            appendLine(centerText("Megasuper Paraiso"))
+            appendLine(centerText(businessUnitName))
             appendLine(centerText("CORPORACION MEGASUPER S.A."))
             appendLine()
             appendLine(centerText("Transacción en espera"))

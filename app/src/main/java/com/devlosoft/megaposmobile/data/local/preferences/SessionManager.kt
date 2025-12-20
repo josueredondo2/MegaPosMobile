@@ -35,6 +35,7 @@ class SessionManager @Inject constructor(
         private val KEY_USER_NAME = stringPreferencesKey(Constants.KEY_USER_NAME)
         private val KEY_SESSION_ID = stringPreferencesKey(Constants.KEY_SESSION_ID)
         private val KEY_STATION_ID = stringPreferencesKey(Constants.KEY_STATION_ID)
+        private val KEY_BUSINESS_UNIT_NAME = stringPreferencesKey("business_unit_name")
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey(Constants.KEY_IS_LOGGED_IN)
         private val KEY_SERVER_URL = stringPreferencesKey(Constants.KEY_SERVER_URL)
         private val KEY_USER_PERMISSIONS = stringPreferencesKey(Constants.KEY_USER_PERMISSIONS)
@@ -44,7 +45,8 @@ class SessionManager @Inject constructor(
         accessToken: String,
         userCode: String? = null,
         userName: String? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        businessUnitName: String? = null
     ) {
         dataStore.edit { preferences ->
             preferences[KEY_ACCESS_TOKEN] = accessToken
@@ -52,6 +54,7 @@ class SessionManager @Inject constructor(
             userCode?.let { preferences[KEY_USER_CODE] = it }
             userName?.let { preferences[KEY_USER_NAME] = it }
             sessionId?.let { preferences[KEY_SESSION_ID] = it }
+            businessUnitName?.let { preferences[KEY_BUSINESS_UNIT_NAME] = it }
         }
     }
 
@@ -62,6 +65,7 @@ class SessionManager @Inject constructor(
             preferences.remove(KEY_USER_NAME)
             preferences.remove(KEY_SESSION_ID)
             preferences.remove(KEY_STATION_ID)
+            preferences.remove(KEY_BUSINESS_UNIT_NAME)
             preferences.remove(KEY_USER_PERMISSIONS)
             preferences[KEY_IS_LOGGED_IN] = false
         }
@@ -83,6 +87,8 @@ class SessionManager @Inject constructor(
     fun getSessionId(): Flow<String?> = dataStore.data.map { it[KEY_SESSION_ID] }
 
     fun getStationId(): Flow<String?> = dataStore.data.map { it[KEY_STATION_ID] }
+
+    fun getBusinessUnitName(): Flow<String?> = dataStore.data.map { it[KEY_BUSINESS_UNIT_NAME] }
 
     fun isLoggedIn(): Flow<Boolean> = dataStore.data.map { it[KEY_IS_LOGGED_IN] ?: false }
 

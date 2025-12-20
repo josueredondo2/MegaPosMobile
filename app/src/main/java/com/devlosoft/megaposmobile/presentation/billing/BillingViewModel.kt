@@ -187,6 +187,32 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.AbortNavigationHandled -> {
                 _state.update { it.copy(shouldNavigateAfterAbort = false) }
             }
+            // Delete line events
+            is BillingEvent.DismissDeleteLineError -> {
+                _state.update { it.copy(deleteLineError = null) }
+            }
+            // Change quantity events
+            is BillingEvent.ChangeQuantityValueChanged -> {
+                _state.update { it.copy(changeQuantityNewQty = event.value) }
+            }
+            is BillingEvent.ConfirmChangeQuantity -> {
+                confirmChangeQuantity()
+            }
+            is BillingEvent.DismissChangeQuantityDialog -> {
+                _state.update {
+                    it.copy(
+                        showChangeQuantityDialog = false,
+                        changeQuantityNewQty = "",
+                        changeQuantityItemId = "",
+                        changeQuantityItemName = "",
+                        changeQuantityLineNumber = 0,
+                        changeQuantityCurrentQty = 0.0
+                    )
+                }
+            }
+            is BillingEvent.DismissChangeQuantityError -> {
+                _state.update { it.copy(changeQuantityError = null) }
+            }
             // Print error events
             is BillingEvent.RetryPrint -> {
                 retryPrint()
@@ -392,6 +418,24 @@ class BillingViewModel @Inject constructor(
                     selectedCustomer = customerToUse,
                     shouldNavigateToTransaction = true
                 )
+            }
+        }
+    }
+
+    private fun loadTransactionDetails(transactionCode: String) {
+        viewModelScope.launch {
+            billingRepository.getTransactionDetails(transactionCode).collect { result ->
+                when (result) {
+                    is Resource.Loading -> { }
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(invoiceData = result.data ?: InvoiceData())
+                        }
+                    }
+                    is Resource.Error -> {
+                        Log.e(TAG, "Error loading transaction details: ${result.message}")
+                    }
+                }
             }
         }
     }
@@ -672,13 +716,29 @@ class BillingViewModel @Inject constructor(
         val permissions = _state.value.userPermissions
         val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO) ?: false
 
+        // Find the item to get lineNumber and current quantity
+        val item = _state.value.invoiceData.items.find { it.itemId == itemId }
+        if (item == null) {
+            Log.e(TAG, "Item not found: $itemId")
+            return
+        }
+
         if (hasAccess) {
-            // User has access, execute action directly
-            executeChangeQuantity(itemId)
+            // User has access, show quantity dialog directly with user's code as authorizer
+            viewModelScope.launch {
+                val userCode = sessionManager.getUserCode().first()
+                showChangeQuantityDialog(itemId, itemName, item.lineItemSequence, item.quantity, userCode)
+            }
         } else {
-            // User doesn't have access, show authorization dialog
+            // User doesn't have access, show authorization dialog first
+            // Store item info in state for after authorization
             _state.update {
                 it.copy(
+                    changeQuantityItemId = itemId,
+                    changeQuantityItemName = itemName,
+                    changeQuantityLineNumber = item.lineItemSequence,
+                    changeQuantityCurrentQty = item.quantity,
+                    changeQuantityAuthorizedBy = null, // Will be set after authorization
                     authorizationDialogState = AuthorizationDialogState(
                         isVisible = true,
                         title = "Cambiar Cantidad",
@@ -686,9 +746,27 @@ class BillingViewModel @Inject constructor(
                         actionButtonText = "Cambiar Cantidad",
                         processCode = UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
                     ),
-                    pendingAuthorizationAction = PendingAuthorizationAction.ChangeQuantity(itemId)
+                    pendingAuthorizationAction = PendingAuthorizationAction.ChangeQuantity(
+                        itemId = itemId,
+                        lineNumber = item.lineItemSequence,
+                        newQuantity = 0.0 // Will be set when user enters quantity
+                    )
                 )
             }
+        }
+    }
+
+    private fun showChangeQuantityDialog(itemId: String, itemName: String, lineNumber: Int, currentQty: Double, authorizedBy: String?) {
+        _state.update {
+            it.copy(
+                showChangeQuantityDialog = true,
+                changeQuantityItemId = itemId,
+                changeQuantityItemName = itemName,
+                changeQuantityLineNumber = lineNumber,
+                changeQuantityCurrentQty = currentQty,
+                changeQuantityNewQty = currentQty.toInt().toString(), // Pre-fill with current quantity
+                changeQuantityAuthorizedBy = authorizedBy
+            )
         }
     }
 
@@ -786,8 +864,22 @@ class BillingViewModel @Inject constructor(
 
     private fun executePendingAction(pendingAction: PendingAuthorizationAction, authorizedBy: String? = null) {
         when (pendingAction) {
-            is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
-            is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
+            is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId, authorizedBy)
+            is PendingAuthorizationAction.ChangeQuantity -> {
+                // If newQuantity is 0, show dialog to enter quantity
+                // If newQuantity > 0, execute the API call directly
+                if (pendingAction.newQuantity > 0) {
+                    executeChangeQuantityApi(
+                        itemId = pendingAction.itemId,
+                        lineNumber = pendingAction.lineNumber,
+                        newQuantity = pendingAction.newQuantity,
+                        authorizedBy = authorizedBy
+                    )
+                } else {
+                    // After authorization, show the quantity dialog with the authorizer's code
+                    executeChangeQuantity(pendingAction.itemId, authorizedBy)
+                }
+            }
             is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction(authorizedBy)
             is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
             is PendingAuthorizationAction.AuthorizeMaterial -> executeAddMaterialWithAuthorization(
@@ -799,27 +891,178 @@ class BillingViewModel @Inject constructor(
         }
     }
 
-    // TODO: Implement these action methods when the actual functionality is added
-    private fun executeDeleteLine(itemId: String) {
-        Log.d(TAG, "Executing delete line for item: $itemId")
-        _state.update {
-            it.copy(
-                showTodoDialog = true,
-                todoDialogMessage = "Eliminar Línea\nItem ID: $itemId"
-            )
+    private fun executeDeleteLine(itemId: String, authorizedBy: String? = null) {
+        Log.d(TAG, "Executing delete line for item: $itemId, authorizedBy: $authorizedBy")
+        viewModelScope.launch {
+            try {
+                // If authorizedBy is provided, use it. Otherwise, get current user code (user has permission)
+                val authOperator = authorizedBy ?: sessionManager.getUserCode().first() ?: ""
+                val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
+                val transactionId = _state.value.transactionCode
+
+                if (transactionId.isBlank()) {
+                    Log.e(TAG, "No transaction code for delete line")
+                    _state.update { it.copy(deleteLineError = "No hay transacción activa") }
+                    return@launch
+                }
+
+                Log.d(TAG, "Calling voidItem API - transactionId: $transactionId, itemId: $itemId, authOperator: $authOperator, affiliateType: $affiliateType")
+
+                billingRepository.voidItem(
+                    transactionId = transactionId,
+                    itemPosId = itemId,
+                    authorizedOperator = authOperator,
+                    affiliateType = affiliateType,
+                    deleteAll = true
+                ).collect { result ->
+                    when (result) {
+                        is Resource.Loading -> {
+                            Log.d(TAG, "Delete line loading...")
+                            _state.update { it.copy(isDeletingLine = true, deleteLineError = null) }
+                        }
+                        is Resource.Success -> {
+                            Log.d(TAG, "Delete line success!")
+                            _state.update { it.copy(isDeletingLine = false) }
+                            // Refresh transaction details to update the UI
+                            loadTransactionDetails(transactionId)
+                        }
+                        is Resource.Error -> {
+                            Log.e(TAG, "Delete line error: ${result.message}")
+                            _state.update {
+                                it.copy(
+                                    isDeletingLine = false,
+                                    deleteLineError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in executeDeleteLine: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isDeletingLine = false,
+                        deleteLineError = "Error: ${e.message}"
+                    )
+                }
+            }
         }
-        // TODO: Implement delete line API call
     }
 
-    private fun executeChangeQuantity(itemId: String) {
-        Log.d(TAG, "Executing change quantity for item: $itemId")
-        _state.update {
-            it.copy(
-                showTodoDialog = true,
-                todoDialogMessage = "Cambiar Cantidad\nItem ID: $itemId"
-            )
+    private fun executeChangeQuantity(itemId: String, authorizedBy: String?) {
+        Log.d(TAG, "Executing change quantity for item: $itemId, authorizedBy: $authorizedBy")
+        // This is called after authorization - show the quantity dialog with the authorizer's code
+        // Item info should already be in state from handleChangeQuantityRequest
+        val state = _state.value
+        if (state.changeQuantityItemId == itemId) {
+            _state.update {
+                it.copy(
+                    showChangeQuantityDialog = true,
+                    changeQuantityNewQty = state.changeQuantityCurrentQty.toInt().toString(),
+                    changeQuantityAuthorizedBy = authorizedBy
+                )
+            }
+        } else {
+            // Find the item if not already in state
+            val item = _state.value.invoiceData.items.find { it.itemId == itemId }
+            if (item != null) {
+                showChangeQuantityDialog(itemId, item.itemName, item.lineItemSequence, item.quantity, authorizedBy)
+            } else {
+                Log.e(TAG, "Item not found for change quantity: $itemId")
+            }
         }
-        // TODO: Implement change quantity dialog/flow
+    }
+
+    private fun confirmChangeQuantity() {
+        val state = _state.value
+        val newQty = state.changeQuantityNewQty.toDoubleOrNull()
+
+        if (newQty == null || newQty < 1 || newQty > 99) {
+            _state.update { it.copy(changeQuantityError = "La cantidad debe ser entre 1 y 99") }
+            return
+        }
+
+        // Use the stored authorizedBy - no need to check permission again
+        // Authorization was already done before showing this dialog
+        executeChangeQuantityApi(
+            itemId = state.changeQuantityItemId,
+            lineNumber = state.changeQuantityLineNumber,
+            newQuantity = newQty,
+            authorizedBy = state.changeQuantityAuthorizedBy
+        )
+    }
+
+    private fun executeChangeQuantityApi(
+        itemId: String,
+        lineNumber: Int,
+        newQuantity: Double,
+        authorizedBy: String?
+    ) {
+        Log.d(TAG, "Executing change quantity API - itemId: $itemId, lineNumber: $lineNumber, newQuantity: $newQuantity, authorizedBy: $authorizedBy")
+        viewModelScope.launch {
+            try {
+                val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
+                val transactionId = _state.value.transactionCode
+
+                if (transactionId.isBlank()) {
+                    Log.e(TAG, "No transaction code for change quantity")
+                    _state.update { it.copy(changeQuantityError = "No hay transacción activa") }
+                    return@launch
+                }
+
+                billingRepository.changeQuantity(
+                    transactionId = transactionId,
+                    itemPosId = itemId,
+                    lineNumber = lineNumber,
+                    newQuantity = newQuantity,
+                    partyAffiliationTypeCode = affiliateType,
+                    isAuthorized = true,
+                    authorizedBy = authorizedBy
+                ).collect { result ->
+                    when (result) {
+                        is Resource.Loading -> {
+                            Log.d(TAG, "Change quantity loading...")
+                            _state.update { it.copy(isChangingQuantity = true, changeQuantityError = null) }
+                        }
+                        is Resource.Success -> {
+                            Log.d(TAG, "Change quantity success!")
+                            // Use the returned invoice data directly
+                            val invoiceData = result.data ?: InvoiceData()
+                            _state.update {
+                                it.copy(
+                                    isChangingQuantity = false,
+                                    showChangeQuantityDialog = false,
+                                    changeQuantityNewQty = "",
+                                    changeQuantityItemId = "",
+                                    changeQuantityItemName = "",
+                                    changeQuantityLineNumber = 0,
+                                    changeQuantityCurrentQty = 0.0,
+                                    changeQuantityAuthorizedBy = null,
+                                    invoiceData = invoiceData
+                                )
+                            }
+                        }
+                        is Resource.Error -> {
+                            Log.e(TAG, "Change quantity error: ${result.message}")
+                            _state.update {
+                                it.copy(
+                                    isChangingQuantity = false,
+                                    changeQuantityError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in executeChangeQuantityApi: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isChangingQuantity = false,
+                        changeQuantityError = "Error: ${e.message}"
+                    )
+                }
+            }
+        }
     }
 
     private fun executeAbortTransaction(authorizedBy: String? = null) {
@@ -1127,14 +1370,16 @@ class BillingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val userName = sessionManager.getUserName().first() ?: "Usuario"
-                Log.d(TAG, "Printing pause receipt for user: $userName")
+                val businessUnitName = sessionManager.getBusinessUnitName().first() ?: "Megasuper"
+                Log.d(TAG, "Printing pause receipt for user: $userName, businessUnit: $businessUnitName")
 
                 val printText = LocalPrintTemplates.buildPendingTransactionReceipt(
                     userName = userName,
                     totalItems = totalItems,
                     subtotal = subtotal,
                     transactionId = transactionId,
-                    customerIdentification = customerIdentification
+                    customerIdentification = customerIdentification,
+                    businessUnitName = businessUnitName
                 )
 
                 _state.update {

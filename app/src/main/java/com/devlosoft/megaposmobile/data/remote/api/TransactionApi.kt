@@ -3,6 +3,8 @@ package com.devlosoft.megaposmobile.data.remote.api
 import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
@@ -12,9 +14,11 @@ import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -66,4 +70,16 @@ interface TransactionApi {
     suspend fun abortTransaction(
         @Body request: AbortTransactionRequestDto
     ): Response<AbortTransactionResponseDto>
+
+    @PATCH("material/{transactionId}/void")
+    suspend fun voidItem(
+        @Path("transactionId") transactionId: String,
+        @Body request: VoidItemRequestDto
+    ): Response<Boolean>
+
+    @PUT("material/{transactionId}/change-quantity")
+    suspend fun changeQuantity(
+        @Path("transactionId") transactionId: String,
+        @Body request: ChangeQuantityRequestDto
+    ): Response<ChangeQuantityResponseDto>
 }
