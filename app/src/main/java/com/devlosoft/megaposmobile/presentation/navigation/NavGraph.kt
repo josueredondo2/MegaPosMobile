@@ -1,12 +1,14 @@
 package com.devlosoft.megaposmobile.presentation.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
+import androidx.navigation.navigation
+import androidx.navigation.toRoute
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.devlosoft.megaposmobile.presentation.advancedoptions.AdvancedOptionsScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingScreen
@@ -17,30 +19,35 @@ import com.devlosoft.megaposmobile.presentation.home.HomeScreen
 import com.devlosoft.megaposmobile.presentation.login.LoginScreen
 import com.devlosoft.megaposmobile.presentation.process.ProcessScreen
 import com.devlosoft.megaposmobile.presentation.process.ProcessViewModel
+import kotlin.reflect.typeOf
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    startDestination: String = Screen.Login.route
+    startDestination: Any = Login
 ) {
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = startDestination,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
     ) {
-        composable(route = Screen.Login.route) {
+        composable<Login> {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    navController.navigate(Home) {
+                        popUpTo<Login> { inclusive = true }
                     }
                 },
                 onNavigateToConfiguration = {
-                    navController.navigate(Screen.Configuration.route)
+                    navController.navigate(Configuration)
                 }
             )
         }
 
-        composable(route = Screen.Configuration.route) {
+        composable<Configuration> {
             ConfigurationScreen(
                 onBack = {
                     navController.popBackStack()
@@ -48,7 +55,7 @@ fun NavGraph(
             )
         }
 
-        composable(route = Screen.AdvancedOptions.route) {
+        composable<AdvancedOptions> {
             AdvancedOptionsScreen(
                 onBack = {
                     navController.popBackStack()
@@ -56,130 +63,101 @@ fun NavGraph(
             )
         }
 
-        composable(route = Screen.Home.route) {
+        composable<Home> {
             HomeScreen(
                 onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                    navController.navigate(Login) {
+                        popUpTo<Home> { inclusive = true }
                     }
                 },
                 onNavigateToProcess = { processType ->
-                    navController.navigate(Screen.Process.createRoute(processType))
+                    navController.navigate(Process(processType))
                 },
                 onNavigateToBilling = {
-                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = false))
+                    navController.navigate(BillingGraph)
                 },
                 onNavigateToAdvancedOptions = {
-                    navController.navigate(Screen.AdvancedOptions.route)
+                    navController.navigate(AdvancedOptions)
                 }
             )
         }
 
-        composable(
-            route = Screen.Process.route,
-            arguments = listOf(
-                navArgument("processType") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val processType = backStackEntry.arguments?.getString("processType") ?: ""
+        composable<Process> { backStackEntry ->
+            val args = backStackEntry.toRoute<Process>()
             ProcessScreen(
-                processType = processType,
+                processType = args.processType,
                 onBack = {
                     navController.popBackStack()
                 }
             )
         }
 
-        // Billing flow - share ViewModel between screens
-        composable(
-            route = Screen.Billing.route,
-            arguments = listOf(
-                navArgument("skipRecoveryCheck") {
-                    type = NavType.BoolType
-                    defaultValue = false
-                }
-            )
-        ) { backStackEntry ->
-            // Use the backStackEntry parameter directly instead of getBackStackEntry
-            // to avoid crashes during navigation transitions
-            val billingViewModel: BillingViewModel = hiltViewModel(backStackEntry)
+        // Billing flow - nested navigation graph for sharing ViewModel
+        navigation<BillingGraph>(startDestination = Billing()) {
 
-            BillingScreen(
-                viewModel = billingViewModel,
-                onNavigateToTransaction = {
-                    navController.navigate(Screen.TransactionDetail.route)
-                },
-                onBack = {
-                    navController.popBackStack()
-                },
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+            composable<Billing>(
+                typeMap = mapOf(typeOf<Boolean>() to androidx.navigation.NavType.BoolType)
+            ) { backStackEntry ->
+                // Get ViewModel from parent graph to share between screens
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(BillingGraph)
+                }
+                val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
+
+                BillingScreen(
+                    viewModel = billingViewModel,
+                    onNavigateToTransaction = {
+                        navController.navigate(TransactionDetail)
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onLogout = {
+                        navController.navigate(Login) {
+                            popUpTo<Home> { inclusive = true }
+                        }
+                    },
+                    onNavigateToHome = {
+                        navController.popBackStack<Home>(inclusive = false)
                     }
-                },
-                onNavigateToHome = {
-                    navController.popBackStack(Screen.Home.route, inclusive = false)
-                }
-            )
-        }
-
-        composable(route = Screen.TransactionDetail.route) {
-            // Get the ViewModel from the billing backstack entry to share state
-            // Cache the entry to avoid issues during recomposition when navigating away
-            val billingEntry = remember {
-                try {
-                    navController.getBackStackEntry(Screen.Billing.route)
-                } catch (e: IllegalArgumentException) {
-                    null
-                }
+                )
             }
 
-            // If billing entry doesn't exist, navigate back
-            if (billingEntry == null) {
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = false)) {
-                        popUpTo(Screen.Home.route) { inclusive = false }
-                    }
+            composable<TransactionDetail> { backStackEntry ->
+                // Get ViewModel from parent graph (shared with BillingScreen)
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(BillingGraph)
                 }
-                return@composable
+                val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
+
+                TransactionScreen(
+                    viewModel = billingViewModel,
+                    onNavigateToPayment = { transactionId, amount ->
+                        navController.navigate(PaymentProcess(transactionId, amount))
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onLogout = {
+                        navController.navigate(Login) {
+                            popUpTo<Home> { inclusive = true }
+                        }
+                    },
+                    onNavigateToHome = {
+                        navController.popBackStack<Home>(inclusive = false)
+                    }
+                )
             }
-
-            val billingViewModel: BillingViewModel = hiltViewModel(billingEntry)
-
-            TransactionScreen(
-                viewModel = billingViewModel,
-                onNavigateToPayment = { transactionId, amount ->
-                    navController.navigate(Screen.PaymentProcess.createRoute(transactionId, amount))
-                },
-                onBack = {
-                    navController.popBackStack()
-                },
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                    }
-                },
-                onNavigateToHome = {
-                    navController.popBackStack(Screen.Home.route, inclusive = false)
-                }
-            )
         }
 
         // Payment process screen
-        composable(
-            route = Screen.PaymentProcess.route,
-            arguments = listOf(
-                navArgument("transactionId") { type = NavType.StringType },
-                navArgument("amount") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
-            val amount = backStackEntry.arguments?.getString("amount")?.toDoubleOrNull() ?: 0.0
+        composable<PaymentProcess> { backStackEntry ->
+            val args = backStackEntry.toRoute<PaymentProcess>()
             val processViewModel: ProcessViewModel = hiltViewModel()
 
             // Start payment process when screen is launched
-            androidx.compose.runtime.LaunchedEffect(transactionId, amount) {
-                processViewModel.startPaymentProcess(transactionId, amount)
+            androidx.compose.runtime.LaunchedEffect(args.transactionId, args.amount) {
+                processViewModel.startPaymentProcess(args.transactionId, args.amount)
             }
 
             ProcessScreen(
@@ -187,8 +165,8 @@ fun NavGraph(
                 viewModel = processViewModel,
                 onBack = {
                     // Navigate to Billing for new transaction, skipping recovery check
-                    navController.navigate(Screen.Billing.createRoute(skipRecoveryCheck = true)) {
-                        popUpTo(Screen.Home.route) { inclusive = false }
+                    navController.navigate(Billing(skipRecoveryCheck = true)) {
+                        popUpTo<Home> { inclusive = false }
                     }
                 },
                 autoStartProcess = false,
