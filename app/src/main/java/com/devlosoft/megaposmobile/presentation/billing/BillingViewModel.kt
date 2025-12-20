@@ -171,6 +171,22 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.PauseNavigationHandled -> {
                 _state.update { it.copy(shouldNavigateAfterPause = false) }
             }
+            // Abort transaction events
+            is BillingEvent.DismissAbortConfirmDialog -> {
+                _state.update { it.copy(showAbortConfirmDialog = false, abortReason = "", abortAuthorizingOperator = "") }
+            }
+            is BillingEvent.AbortReasonChanged -> {
+                _state.update { it.copy(abortReason = event.reason) }
+            }
+            is BillingEvent.ConfirmAbortTransaction -> {
+                confirmAbortTransaction()
+            }
+            is BillingEvent.DismissAbortTransactionError -> {
+                _state.update { it.copy(abortTransactionError = null) }
+            }
+            is BillingEvent.AbortNavigationHandled -> {
+                _state.update { it.copy(shouldNavigateAfterAbort = false) }
+            }
             // Print error events
             is BillingEvent.RetryPrint -> {
                 retryPrint()
@@ -772,7 +788,7 @@ class BillingViewModel @Inject constructor(
         when (pendingAction) {
             is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId)
             is PendingAuthorizationAction.ChangeQuantity -> executeChangeQuantity(pendingAction.itemId)
-            is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction()
+            is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction(authorizedBy)
             is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
             is PendingAuthorizationAction.AuthorizeMaterial -> executeAddMaterialWithAuthorization(
                 itemPosId = pendingAction.itemPosId,
@@ -806,19 +822,121 @@ class BillingViewModel @Inject constructor(
         // TODO: Implement change quantity dialog/flow
     }
 
-    private fun executeAbortTransaction() {
-        Log.d(TAG, "Executing abort transaction")
+    private fun executeAbortTransaction(authorizedBy: String? = null) {
+        Log.d(TAG, "Executing abort transaction - showing confirmation dialog, authorizedBy: $authorizedBy")
         viewModelScope.launch {
-            // Clear active transactionId from local database when aborting
-            billingRepository.clearActiveTransactionId()
+            // If authorizedBy is provided, use it. Otherwise, get current user code (user has permission)
+            val authOperator = authorizedBy ?: sessionManager.getUserCode().first() ?: ""
+            _state.update {
+                it.copy(
+                    showAbortConfirmDialog = true,
+                    abortReason = "",
+                    abortAuthorizingOperator = authOperator
+                )
+            }
         }
-        _state.update {
-            it.copy(
-                showTodoDialog = true,
-                todoDialogMessage = "Abortar Transacción"
-            )
+    }
+
+    private fun confirmAbortTransaction() {
+        Log.d(TAG, "confirmAbortTransaction() called")
+        val transactionCode = _state.value.transactionCode
+        val reason = _state.value.abortReason.trim()
+        val authorizingOperator = _state.value.abortAuthorizingOperator
+
+        if (transactionCode.isBlank()) {
+            Log.e(TAG, "No transaction code")
+            _state.update {
+                it.copy(
+                    showAbortConfirmDialog = false,
+                    abortTransactionError = "No hay transacción activa"
+                )
+            }
+            return
         }
-        // TODO: Implement abort transaction API call
+
+        if (reason.isBlank()) {
+            Log.e(TAG, "No abort reason provided")
+            // Don't close dialog, let UI show validation error
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Getting session data for abort...")
+                val sessionId = sessionManager.getSessionId().first()
+                val stationId = sessionManager.getStationId().first()
+                Log.d(TAG, "Session: $sessionId, Station: $stationId, AuthorizingOperator: $authorizingOperator")
+
+                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(
+                            showAbortConfirmDialog = false,
+                            abortTransactionError = "No hay sesión activa"
+                        )
+                    }
+                    return@launch
+                }
+
+                Log.d(TAG, "Calling billingRepository.abortTransaction...")
+                billingRepository.abortTransaction(
+                    sessionId = sessionId,
+                    workstationId = stationId,
+                    transactionId = transactionCode,
+                    reason = reason,
+                    authorizingOperator = authorizingOperator
+                ).collect { result ->
+                    Log.d(TAG, "Abort result received: $result")
+                    when (result) {
+                        is Resource.Loading -> {
+                            Log.d(TAG, "Abort loading...")
+                            _state.update {
+                                it.copy(
+                                    isAbortingTransaction = true,
+                                    showAbortConfirmDialog = false,
+                                    abortTransactionError = null
+                                )
+                            }
+                        }
+                        is Resource.Success -> {
+                            Log.d(TAG, "Abort success!")
+                            // Clear active transactionId from local database
+                            billingRepository.clearActiveTransactionId()
+                            // Reset transaction state and navigate
+                            _state.update {
+                                it.copy(
+                                    isAbortingTransaction = false,
+                                    shouldNavigateAfterAbort = true,
+                                    abortReason = "",
+                                    abortAuthorizingOperator = "",
+                                    transactionCode = "",
+                                    isTransactionCreated = false,
+                                    invoiceData = InvoiceData(),
+                                    selectedCustomer = null
+                                )
+                            }
+                        }
+                        is Resource.Error -> {
+                            Log.e(TAG, "Abort error: ${result.message}")
+                            _state.update {
+                                it.copy(
+                                    isAbortingTransaction = false,
+                                    abortTransactionError = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in confirmAbortTransaction: ${e.message}", e)
+                _state.update {
+                    it.copy(
+                        isAbortingTransaction = false,
+                        showAbortConfirmDialog = false,
+                        abortTransactionError = "Error: ${e.message}"
+                    )
+                }
+            }
+        }
     }
 
     private fun executeAddMaterialWithAuthorization(

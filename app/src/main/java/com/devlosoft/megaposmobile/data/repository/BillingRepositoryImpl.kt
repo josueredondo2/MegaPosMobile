@@ -5,6 +5,7 @@ import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
@@ -277,6 +278,44 @@ class BillingRepositoryImpl @Inject constructor(
                     emit(Resource.Success(true))
                 } else {
                     val message = response.body()?.message ?: "Error al pausar transacción"
+                    emit(Resource.Error(message))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun abortTransaction(
+        sessionId: String,
+        workstationId: String,
+        transactionId: String,
+        reason: String,
+        authorizingOperator: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = AbortTransactionRequestDto(
+                sessionId = sessionId,
+                workstationId = workstationId,
+                transactionId = transactionId,
+                reason = reason,
+                authorizingOperator = authorizingOperator
+            )
+            val response = transactionApi.abortTransaction(request)
+            if (response.isSuccessful) {
+                val success = response.body()?.success ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    val message = response.body()?.message ?: "Error al abortar transacción"
                     emit(Resource.Error(message))
                 }
             } else {

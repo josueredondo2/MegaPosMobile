@@ -51,6 +51,13 @@ sealed class BillingEvent {
     data object DismissPauseTransactionError : BillingEvent()
     data object PauseNavigationHandled : BillingEvent()
 
+    // Abort transaction events
+    data object DismissAbortConfirmDialog : BillingEvent()
+    data class AbortReasonChanged(val reason: String) : BillingEvent()
+    data object ConfirmAbortTransaction : BillingEvent()
+    data object DismissAbortTransactionError : BillingEvent()
+    data object AbortNavigationHandled : BillingEvent()
+
     // Print error events (pause receipt)
     data object RetryPrint : BillingEvent()
     data object SkipPrint : BillingEvent()

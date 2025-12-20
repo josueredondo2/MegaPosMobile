@@ -67,6 +67,11 @@ fun BillingScreen(
     val dimensions = LocalDimensions.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    // Clear previous customer search results when screen is shown
+    LaunchedEffect(Unit) {
+        viewModel.onEvent(BillingEvent.ClearCustomerSearch)
+    }
+
     // Handle navigation to transaction screen
     LaunchedEffect(state.shouldNavigateToTransaction) {
         if (state.shouldNavigateToTransaction) {

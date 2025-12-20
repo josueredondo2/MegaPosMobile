@@ -61,6 +61,14 @@ interface BillingRepository {
         workstationId: String
     ): Flow<Resource<Boolean>>
 
+    suspend fun abortTransaction(
+        sessionId: String,
+        workstationId: String,
+        transactionId: String,
+        reason: String,
+        authorizingOperator: String
+    ): Flow<Resource<Boolean>>
+
     // Active transaction persistence methods
     suspend fun saveActiveTransactionId(transactionId: String)
     suspend fun getActiveTransactionId(): String?

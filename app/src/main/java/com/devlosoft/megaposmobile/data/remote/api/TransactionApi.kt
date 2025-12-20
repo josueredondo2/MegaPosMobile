@@ -1,5 +1,7 @@
 package com.devlosoft.megaposmobile.data.remote.api
 
+import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponseDto
@@ -59,4 +61,9 @@ interface TransactionApi {
     suspend fun pauseTransaction(
         @Body request: PauseTransactionRequestDto
     ): Response<PauseTransactionResponseDto>
+
+    @POST("transaction/abort")
+    suspend fun abortTransaction(
+        @Body request: AbortTransactionRequestDto
+    ): Response<AbortTransactionResponseDto>
 }

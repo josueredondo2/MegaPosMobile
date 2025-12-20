@@ -56,6 +56,14 @@ data class BillingState(
     val pauseTransactionError: String? = null,
     val shouldNavigateAfterPause: Boolean = false,
 
+    // Abort transaction state
+    val showAbortConfirmDialog: Boolean = false,
+    val abortReason: String = "",
+    val abortAuthorizingOperator: String = "",
+    val isAbortingTransaction: Boolean = false,
+    val abortTransactionError: String? = null,
+    val shouldNavigateAfterAbort: Boolean = false,
+
     // Print error state (for pause receipt)
     val showPrintErrorDialog: Boolean = false,
     val printErrorMessage: String? = null,

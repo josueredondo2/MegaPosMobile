@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
+import com.devlosoft.megaposmobile.presentation.shared.components.AbortConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
@@ -165,6 +166,24 @@ fun TransactionScreen(
         }
     )
 
+    // Abort Confirmation Dialog with reason text field
+    AbortConfirmDialog(
+        isVisible = state.showAbortConfirmDialog,
+        reason = state.abortReason,
+        onReasonChanged = { viewModel.onEvent(BillingEvent.AbortReasonChanged(it)) },
+        onConfirm = { viewModel.onEvent(BillingEvent.ConfirmAbortTransaction) },
+        onDismiss = { viewModel.onEvent(BillingEvent.DismissAbortConfirmDialog) }
+    )
+
+    // Abort Transaction Error Dialog
+    ErrorDialog(
+        message = state.abortTransactionError,
+        title = "Error al Abortar",
+        onDismiss = {
+            viewModel.onEvent(BillingEvent.DismissAbortTransactionError)
+        }
+    )
+
     // Pause Transaction Error Dialog
     ErrorDialog(
         message = state.pauseTransactionError,
@@ -212,6 +231,14 @@ fun TransactionScreen(
     LaunchedEffect(state.shouldNavigateAfterPause) {
         if (state.shouldNavigateAfterPause) {
             viewModel.onEvent(BillingEvent.PauseNavigationHandled)
+            onBack()
+        }
+    }
+
+    // Handle navigation after successful abort
+    LaunchedEffect(state.shouldNavigateAfterAbort) {
+        if (state.shouldNavigateAfterAbort) {
+            viewModel.onEvent(BillingEvent.AbortNavigationHandled)
             onBack()
         }
     }
