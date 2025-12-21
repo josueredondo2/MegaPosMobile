@@ -5,6 +5,7 @@ import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
@@ -103,14 +104,16 @@ class BillingRepositoryImpl @Inject constructor(
     override suspend fun finalizeTransaction(
         sessionId: String,
         workstationId: String,
-        transactionId: String
+        transactionId: String,
+        dataphoneData: DataphoneDataDto?
     ): Flow<Resource<Boolean>> = flow {
         emit(Resource.Loading())
         try {
             val request = FinalizeTransactionRequestDto(
                 sessionId = sessionId,
                 workstationId = workstationId,
-                transactionId = transactionId
+                transactionId = transactionId,
+                dataphoneData = dataphoneData
             )
             val response = transactionApi.finalizeTransaction(request)
             if (response.isSuccessful) {

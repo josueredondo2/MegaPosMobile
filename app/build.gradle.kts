@@ -26,7 +26,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:6060/pos-api/v1/\"")
 
         // Development mode - skips printer connectivity test
-        buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
+        buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
     }
 
     buildTypes {

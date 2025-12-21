@@ -6,6 +6,7 @@ import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
+import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import kotlinx.coroutines.flow.Flow
 
 interface BillingRepository {
@@ -26,7 +27,8 @@ interface BillingRepository {
     suspend fun finalizeTransaction(
         sessionId: String,
         workstationId: String,
-        transactionId: String
+        transactionId: String,
+        dataphoneData: DataphoneDataDto? = null
     ): Flow<Resource<Boolean>>
     suspend fun getPrintDocuments(
         transactionId: String,

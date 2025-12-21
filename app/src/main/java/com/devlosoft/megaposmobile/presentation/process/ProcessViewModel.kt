@@ -4,15 +4,16 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.dataphone.DataphoneManager
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +39,8 @@ class ProcessViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val stationStatus: StationStatus,
     private val printDocumentsUseCase: PrintDocumentsUseCase,
-    private val getSessionInfoUseCase: GetSessionInfoUseCase
+    private val getSessionInfoUseCase: GetSessionInfoUseCase,
+    private val dataphoneManager: DataphoneManager
 ) : ViewModel() {
 
     companion object {
@@ -74,48 +76,76 @@ class ProcessViewModel @Inject constructor(
             _state.update {
                 it.copy(
                     status = ProcessStatus.Loading,
-                    loadingMessage = "Favor realice el pago en el datafono\npor el monto de $formattedAmount"
+                    loadingMessage = "Favor realice el pago en el datáfono\npor el monto de $formattedAmount"
                 )
             }
 
-            // Simulate 3 second wait for payment
-            delay(500)
+            // Call dataphone for real payment
+            val paymentResult = dataphoneManager.processPayment(amount.toLong())
 
-            // Get session data using UseCase
-            val sessionResult = getSessionInfoUseCase()
-            if (sessionResult.isFailure) {
-                _state.update {
-                    it.copy(status = ProcessStatus.Error(sessionResult.exceptionOrNull()?.message ?: "No hay sesión activa"))
-                }
-                return@launch
-            }
+            paymentResult.fold(
+                onSuccess = { dataphoneResult ->
+                    Log.d(TAG, "Payment successful: auth=${dataphoneResult.autorizacion}")
 
-            val sessionInfo = sessionResult.getOrThrow()
-
-            // Call finalize transaction
-            Log.d(TAG, "Calling finalizeTransaction...")
-            billingRepository.finalizeTransaction(
-                sessionId = sessionInfo.sessionId,
-                workstationId = sessionInfo.stationId,
-                transactionId = transactionId
-            ).collect { result ->
-                when (result) {
-                    is Resource.Loading -> {
-                        // Already in loading state
-                    }
-                    is Resource.Success -> {
-                        Log.d(TAG, "Transaction finalized successfully, now printing...")
-                        // Transaction finalized successfully, now fetch and print documents
-                        fetchAndPrintDocuments(transactionId)
-                    }
-                    is Resource.Error -> {
-                        Log.e(TAG, "Error finalizing transaction: ${result.message}")
+                    // Get session data using UseCase
+                    val sessionResult = getSessionInfoUseCase()
+                    if (sessionResult.isFailure) {
                         _state.update {
-                            it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
+                            it.copy(status = ProcessStatus.Error(sessionResult.exceptionOrNull()?.message ?: "No hay sesión activa"))
+                        }
+                        return@launch
+                    }
+
+                    val sessionInfo = sessionResult.getOrThrow()
+
+                    // Create DTO with dataphone data
+                    val dataphoneData = DataphoneDataDto(
+                        autorizacion = dataphoneResult.autorizacion,
+                        panmasked = dataphoneResult.panmasked,
+                        cardholder = dataphoneResult.cardholder,
+                        terminalid = dataphoneResult.terminalid ?: "",
+                        recibo = dataphoneResult.recibo,
+                        rrn = dataphoneResult.rrn,
+                        stan = dataphoneResult.stan,
+                        ticket = dataphoneResult.ticket,
+                        totalAmount = dataphoneResult.totalAmount
+                    )
+
+                    // Call finalize transaction with real dataphone data
+                    Log.d(TAG, "Calling finalizeTransaction with dataphone data...")
+                    billingRepository.finalizeTransaction(
+                        sessionId = sessionInfo.sessionId,
+                        workstationId = sessionInfo.stationId,
+                        transactionId = transactionId,
+                        dataphoneData = dataphoneData
+                    ).collect { result ->
+                        when (result) {
+                            is Resource.Loading -> {
+                                // Already in loading state
+                            }
+                            is Resource.Success -> {
+                                Log.d(TAG, "Transaction finalized successfully, now printing...")
+                                // Transaction finalized successfully, now fetch and print documents
+                                fetchAndPrintDocuments(transactionId)
+                            }
+                            is Resource.Error -> {
+                                Log.e(TAG, "Error finalizing transaction: ${result.message}")
+                                _state.update {
+                                    it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
+                                }
+                            }
                         }
                     }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Payment failed", error)
+                    _state.update {
+                        it.copy(status = ProcessStatus.Error(
+                            error.message ?: "Error al procesar pago en datáfono"
+                        ))
+                    }
                 }
-            }
+            )
         }
     }
 
