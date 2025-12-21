@@ -42,8 +42,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -63,6 +64,8 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.setLogoutCallback(onLogout)
         viewModel.setNavigateToBillingCallback(onNavigateToBilling)
+        viewModel.setNavigateToProcessCallback(onNavigateToProcess)
+        viewModel.setNavigateToAdvancedOptionsCallback(onNavigateToAdvancedOptions)
     }
 
     // Todo Dialog
@@ -111,6 +114,20 @@ fun HomeScreen(
             }
         )
     }
+
+    // Authorization Dialog
+    AuthorizationDialog(
+        state = state.authorizationDialogState,
+        onAuthorize = { userCode, password ->
+            viewModel.onEvent(HomeEvent.SubmitAuthorization(userCode, password))
+        },
+        onDismiss = {
+            viewModel.onEvent(HomeEvent.DismissAuthorizationDialog)
+        },
+        onClearError = {
+            viewModel.onEvent(HomeEvent.ClearAuthorizationError)
+        }
+    )
 
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -178,66 +195,76 @@ fun HomeScreen(
                     )
 
                     Text(
-                        text = "Estado: ${state.stationStatus}",
+                        text = "Estado de Terminal: ${state.stationStatus}",
                         fontSize = dimensions.fontSizeMedium,
-                        color = Color.DarkGray
+                        fontWeight = FontWeight.Bold,
+                        color = if (state.isStationOpen) Color(0xFF4CAF50) else Color(0xFFE53935)
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Menu Cards
-                    MenuCard(
-                        icon = Icons.Default.PhoneAndroid,
-                        title = "Aperturar Terminal",
-                        description = "Realiza la apertura para el dia.",
-                        onClick = { onNavigateToProcess("openTerminal") }
-                    )
+                    // Menu Cards - shown based on user permissions (show property)
+                    // onClick uses Request* events to validate access before executing
+                    if (state.canOpenTerminal) {
+                        MenuCard(
+                            icon = Icons.Default.PhoneAndroid,
+                            title = "Aperturar Terminal",
+                            description = "Realiza la apertura para el dia.",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestOpenTerminal) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    if (state.canCloseTerminal) {
+                        MenuCard(
+                            icon = Icons.Default.Lock,
+                            title = "Cierre Terminal",
+                            description = "Realiza el cierre para el dia incluyendo cierre del datafono",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseTerminal) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    MenuCard(
-                        icon = Icons.Default.Lock,
-                        title = "Cierre Terminal",
-                        description = "Realiza el cierre para el dia incluyendo cierre del datafono",
-                        onClick = { onNavigateToProcess("closeTerminal") }
-                    )
+                    if (state.canCloseDatafono) {
+                        MenuCard(
+                            icon = Icons.Default.Receipt,
+                            title = "Cierre de datafono",
+                            description = "Cerrar el lote de ventas del datafono.",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseDatafono) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    if (state.canBilling) {
+                        MenuCard(
+                            icon = Icons.Default.AttachMoney,
+                            title = "Facturación",
+                            description = "Ingresa para facturar",
+                            enabled = state.isStationOpen && !state.isCheckingPrinter,
+                            onClick = { viewModel.onEvent(HomeEvent.RequestBilling) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    MenuCard(
-                        icon = Icons.Default.Receipt,
-                        title = "Cierre de datafono",
-                        description = "Cerrar el lote de ventas del datafono.",
-                        onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
-                    )
+                    if (state.canViewTransactions) {
+                        MenuCard(
+                            icon = Icons.Default.Receipt,
+                            title = "Transacciones del dia",
+                            description = "Ver transacciones realizadas durante el dia.",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestViewTransactions) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    MenuCard(
-                        icon = Icons.Default.AttachMoney,
-                        title = "Facturación",
-                        description = "Ingresa para facturar",
-                        enabled = state.isStationOpen && !state.isCheckingPrinter,
-                        onClick = { viewModel.onEvent(HomeEvent.CheckPrinterAndNavigateToBilling) }
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    MenuCard(
-                        icon = Icons.Default.Receipt,
-                        title = "Transacciones del dia",
-                        description = "Ver transacciones realizadas durante el dia.",
-                        onClick = { viewModel.onEvent(HomeEvent.DailyTransactions) }
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    MenuCard(
-                        icon = Icons.Default.Settings,
-                        title = "Opciones Avanzadas",
-                        description = "Configurar impresora, datafono y otros dispositivos",
-                        onClick = { onNavigateToAdvancedOptions() }
-                    )
+                    if (state.canAdvancedOptions) {
+                        MenuCard(
+                            icon = Icons.Default.Settings,
+                            title = "Opciones Avanzadas",
+                            description = "Configurar impresora, datafono y otros dispositivos",
+                            onClick = { viewModel.onEvent(HomeEvent.RequestAdvancedOptions) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
                 }

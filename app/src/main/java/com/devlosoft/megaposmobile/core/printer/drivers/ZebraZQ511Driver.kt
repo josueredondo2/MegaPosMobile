@@ -27,38 +27,55 @@ class ZebraZQ511Driver : PrinterDriver {
     }
 
     /**
-     * Generates ZPL commands for printing a label/receipt
+     * Generates ZPL commands for printing a POS receipt
      * Optimized for Zebra ZQ511 (3" portable thermal printer - 72mm)
-     * Configuration: 72mm width, sales receipt style
-     * Compact font for invoices: ~42-48 characters per line
+     *
+     * Optimal POS receipt configuration:
+     * - Paper width: 576 dots (72mm at 203 DPI)
+     * - 48 characters per line (standard POS width)
+     * - Clear, readable monospace-style font
+     * - Pre-formatted text with spaces for alignment
      */
     private fun buildZPLLabel(text: String): String {
-        // Split text into lines
         val lines = text.split("\n")
 
-        // Build ZPL commands for receipt style
-        // Exact configuration to match virtual printer:
-        // - 48 characters per line (72mm)
-        // - Monospace font like Courier 11pt
-        // - Line height 14pt
-        val commands = StringBuilder()
-        commands.append("^XA\n")  // Start format
-        commands.append("^CI28\n")  // UTF-8 encoding for accents and special characters
-        commands.append("^PW576\n")  // Print width (576 dots for 72mm at 203 DPI)
-        commands.append("^LL${80 + (lines.size * 28)}\n")  // Dynamic length based on lines
-        commands.append("^CF0,24\n")  // Default font: height 24 (100% base size)
+        // === ZEBRA ZQ511 SETTINGS (72mm paper) ===
+        // Using Font C (medium fixed-pitch bitmap)
+        // Font C base size: 18x10 dots
+        val printWidth = 576     // 72mm paper at 203 DPI
+        val fontMultiplier = 1   // Multiplier for Font C (1x = 18x10 dots)
+        val lineSpacing = 22     // Line spacing for Font C
 
-        // Add each line with explicit 100% font size
-        var yPosition = 15
-        lines.forEach { line ->
-            if (line.isNotBlank()) {
-                commands.append("^FO3,$yPosition^A0N,24,12^FD$line^FS\n")  // 100%: height 24, width 12
-                yPosition += 28  // Line spacing for 100%
-            }
+        // Remove trailing empty lines, then add controlled spacing
+        val trimmedLines = lines.dropLastWhile { it.isBlank() }
+        val extraLinesAtStart = 5   // Extra blank lines at start
+        val extraLinesAtEnd = 10    // Extra blank lines for easy tear-off
+
+        val commands = StringBuilder()
+
+        // Start label
+        commands.append("^XA\n")
+
+        // Encoding and dimensions
+        commands.append("^CI28\n")  // UTF-8 for special characters (ñ, á, etc.)
+        commands.append("^PW$printWidth\n")
+        commands.append("^LL${10 + ((trimmedLines.size + extraLinesAtStart + extraLinesAtEnd) * lineSpacing)}\n")
+
+        // Print quality settings
+        commands.append("~SD12\n")   // Darkness: 12 (lighter, normal receipt color)
+        commands.append("^PR6,6,6\n") // Speed: 6 (faster printing)
+
+        // Print each line preserving pre-formatted spacing
+        var yPosition = 10 + (extraLinesAtStart * lineSpacing)  // Start after blank lines
+
+        trimmedLines.forEach { line ->
+            val printLine = if (line.isEmpty()) " " else line
+            // Use ^ACN (Font C - medium bitmap 18x10) for balanced size and alignment
+            commands.append("^FO0,$yPosition^ACN,$fontMultiplier,$fontMultiplier^FD$printLine^FS\n")
+            yPosition += lineSpacing
         }
 
-        commands.append("^XZ")  // End format
-
+        commands.append("^XZ\n")  // End label
         return commands.toString()
     }
 }

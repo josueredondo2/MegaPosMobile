@@ -4,16 +4,13 @@ import com.google.gson.annotations.SerializedName
 
 data class AddMaterialRequestDto(
     @SerializedName("transactionId")
-    val transactionId: String,
+    val transactionId: String = "",
 
     @SerializedName("itemPosId")
     val itemPosId: String,
 
     @SerializedName("quantity")
     val quantity: Double = 1.0,
-
-    @SerializedName("decimals")
-    val decimals: Int = 0,
 
     @SerializedName("partyAffiliationTypeCode")
     val partyAffiliationTypeCode: String? = null,
@@ -25,5 +22,20 @@ data class AddMaterialRequestDto(
     val isAuthorized: Boolean = false,
 
     @SerializedName("authorizedBy")
-    val authorizedBy: String? = null
+    val authorizedBy: String? = null,
+
+    @SerializedName("sessionId")
+    val sessionId: String? = null,
+
+    @SerializedName("workstationId")
+    val workstationId: String? = null,
+
+    @SerializedName("customerId")
+    val customerId: String? = null,
+
+    @SerializedName("customerIdType")
+    val customerIdType: String? = null,
+
+    @SerializedName("customerName")
+    val customerName: String? = null
 )

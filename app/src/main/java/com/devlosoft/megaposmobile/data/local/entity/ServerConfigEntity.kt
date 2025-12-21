@@ -16,5 +16,6 @@ data class ServerConfigEntity(
     val printerBluetoothAddress: String = "",
     val printerBluetoothName: String = "",
     val usePrinterIp: Boolean = true,
-    val printerModel: String = "ZEBRA_ZQ511"
+    val printerModel: String = "ZEBRA_ZQ511",
+    val datafonoProvider: String = "BAC"
 )

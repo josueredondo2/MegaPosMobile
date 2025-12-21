@@ -4,7 +4,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
+import com.devlosoft.megaposmobile.data.local.entity.ActiveTransactionEntity
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -25,11 +27,25 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Create active_transaction table to persist current transaction ID
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS active_transaction (
+                id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                transactionId TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+    }
+}
+
 @Database(
-    entities = [ServerConfigEntity::class],
-    version = 3,
+    entities = [ServerConfigEntity::class, ActiveTransactionEntity::class],
+    version = 4,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {
     abstract fun serverConfigDao(): ServerConfigDao
+    abstract fun activeTransactionDao(): ActiveTransactionDao
 }

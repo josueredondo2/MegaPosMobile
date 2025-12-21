@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.core.util
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -190,6 +191,7 @@ class BluetoothPrinterManager @Inject constructor(
     /**
      * Attempt to identify if a Bluetooth device is likely a printer
      */
+    @SuppressLint("MissingPermission")
     private fun isPrinterDevice(deviceName: String, device: BluetoothDevice): Boolean {
         val printerKeywords = listOf(
             "printer", "impresora", "print", "pos", "receipt",

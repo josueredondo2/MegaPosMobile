@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.BuildConfig
@@ -9,9 +10,12 @@ import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,8 +36,13 @@ class HomeViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val serverConfigDao: ServerConfigDao,
     private val stationStatus: StationStatus,
-    private val printerManager: PrinterManager
+    private val printerManager: PrinterManager,
+    private val authorizeProcessUseCase: AuthorizeProcessUseCase
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
 
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
@@ -55,6 +64,9 @@ class HomeViewModel @Inject constructor(
             val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("es", "ES"))
             val currentDate = dateFormat.format(Date())
 
+            // Get user permissions
+            val permissions = sessionManager.getUserPermissionsSync()
+
             // Get station status
             stationStatus.state.collect { status ->
                 _state.update {
@@ -64,7 +76,16 @@ class HomeViewModel @Inject constructor(
                         terminalName = terminalName,
                         stationStatus = stationStatus.getDisplayText(),
                         isStationOpen = status == StationState.OPEN,
-                        isLoading = false
+                        isLoading = false,
+                        // Store permissions for access validation
+                        userPermissions = permissions,
+                        // Set permissions for menu items (using 'show' property)
+                        canOpenTerminal = permissions?.shouldShow(UserPermissions.PROCESS_APERTURA_CAJA) ?: false,
+                        canCloseTerminal = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_CAJA) ?: false,
+                        canCloseDatafono = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false,
+                        canBilling = permissions?.shouldShow(UserPermissions.PROCESS_FACTURAR) ?: false,
+                        canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false,
+                        canAdvancedOptions = permissions?.shouldShow(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
                     )
                 }
             }
@@ -73,6 +94,8 @@ class HomeViewModel @Inject constructor(
 
     private var onLogoutCallback: (() -> Unit)? = null
     private var onNavigateToBillingCallback: (() -> Unit)? = null
+    private var onNavigateToProcessCallback: ((String) -> Unit)? = null
+    private var onNavigateToAdvancedOptionsCallback: (() -> Unit)? = null
 
     fun setLogoutCallback(callback: () -> Unit) {
         onLogoutCallback = callback
@@ -80,6 +103,14 @@ class HomeViewModel @Inject constructor(
 
     fun setNavigateToBillingCallback(callback: () -> Unit) {
         onNavigateToBillingCallback = callback
+    }
+
+    fun setNavigateToProcessCallback(callback: (String) -> Unit) {
+        onNavigateToProcessCallback = callback
+    }
+
+    fun setNavigateToAdvancedOptionsCallback(callback: () -> Unit) {
+        onNavigateToAdvancedOptionsCallback = callback
     }
 
     fun onEvent(event: HomeEvent) {
@@ -132,6 +163,43 @@ class HomeViewModel @Inject constructor(
             }
             is HomeEvent.DismissCloseTerminalSuccess -> {
                 _state.update { it.copy(showCloseTerminalSuccessDialog = false, closeTerminalMessage = "") }
+            }
+            // Authorization events
+            is HomeEvent.RequestOpenTerminal -> {
+                handleRequestOpenTerminal()
+            }
+            is HomeEvent.RequestCloseTerminal -> {
+                handleRequestCloseTerminal()
+            }
+            is HomeEvent.RequestCloseDatafono -> {
+                handleRequestCloseDatafono()
+            }
+            is HomeEvent.RequestBilling -> {
+                handleRequestBilling()
+            }
+            is HomeEvent.RequestViewTransactions -> {
+                handleRequestViewTransactions()
+            }
+            is HomeEvent.RequestAdvancedOptions -> {
+                handleRequestAdvancedOptions()
+            }
+            is HomeEvent.SubmitAuthorization -> {
+                submitAuthorization(event.userCode, event.password)
+            }
+            is HomeEvent.DismissAuthorizationDialog -> {
+                _state.update {
+                    it.copy(
+                        authorizationDialogState = AuthorizationDialogState(),
+                        pendingAuthorizationAction = null
+                    )
+                }
+            }
+            is HomeEvent.ClearAuthorizationError -> {
+                _state.update {
+                    it.copy(
+                        authorizationDialogState = it.authorizationDialogState.copy(error = null)
+                    )
+                }
             }
         }
     }
@@ -231,6 +299,9 @@ class HomeViewModel @Inject constructor(
 
     private fun logout() {
         viewModelScope.launch {
+            // Close station status when logging out
+            stationStatus.close()
+
             logoutUseCase().collect { }
             onLogoutCallback?.invoke()
         }
@@ -273,6 +344,183 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    // Authorization handlers
+
+    private fun handleRequestOpenTerminal() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_APERTURA_CAJA) ?: false
+        if (hasAccess) {
+            onNavigateToProcessCallback?.invoke("openTerminal")
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Aperturar Terminal",
+                        message = "Para aperturar la terminal debe solicitar autorización",
+                        actionButtonText = "Aperturar Terminal",
+                        processCode = UserPermissions.PROCESS_APERTURA_CAJA
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.OpenTerminal
+                )
+            }
+        }
+    }
+
+    private fun handleRequestCloseTerminal() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_CIERRE_CAJA) ?: false
+        if (hasAccess) {
+            onNavigateToProcessCallback?.invoke("closeTerminal")
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Cierre Terminal",
+                        message = "Para cerrar la terminal debe solicitar autorización",
+                        actionButtonText = "Cierre Terminal",
+                        processCode = UserPermissions.PROCESS_CIERRE_CAJA
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.CloseTerminal
+                )
+            }
+        }
+    }
+
+    private fun handleRequestCloseDatafono() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false
+        if (hasAccess) {
+            showTodoDialog("Cierre de datafono")
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Cierre de Datafono",
+                        message = "Para cerrar el datafono debe solicitar autorización",
+                        actionButtonText = "Cierre Datafono",
+                        processCode = UserPermissions.PROCESS_CIERRE_DATAFONO
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.CloseDatafono
+                )
+            }
+        }
+    }
+
+    private fun handleRequestBilling() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_FACTURAR) ?: false
+        if (hasAccess) {
+            checkPrinterConnection()
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Facturación",
+                        message = "Para facturar debe solicitar autorización",
+                        actionButtonText = "Facturar",
+                        processCode = UserPermissions.PROCESS_FACTURAR
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.Billing
+                )
+            }
+        }
+    }
+
+    private fun handleRequestViewTransactions() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_REIMPRESION) ?: false
+        if (hasAccess) {
+            showTodoDialog("Transacciones del día")
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Transacciones del Día",
+                        message = "Para ver las transacciones debe solicitar autorización",
+                        actionButtonText = "Ver Transacciones",
+                        processCode = UserPermissions.PROCESS_REIMPRESION
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.ViewTransactions
+                )
+            }
+        }
+    }
+
+    private fun handleRequestAdvancedOptions() {
+        val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
+        if (hasAccess) {
+            onNavigateToAdvancedOptionsCallback?.invoke()
+        } else {
+            _state.update {
+                it.copy(
+                    authorizationDialogState = AuthorizationDialogState(
+                        isVisible = true,
+                        title = "Opciones Avanzadas",
+                        message = "Para acceder a opciones avanzadas debe solicitar autorización",
+                        actionButtonText = "Acceder",
+                        processCode = UserPermissions.PROCESS_OPCIONES_AVANZADAS
+                    ),
+                    pendingAuthorizationAction = HomePendingAction.AdvancedOptions
+                )
+            }
+        }
+    }
+
+    private fun submitAuthorization(userCode: String, password: String) {
+        val dialogState = _state.value.authorizationDialogState
+        val pendingAction = _state.value.pendingAuthorizationAction
+
+        if (pendingAction == null) {
+            Log.e(TAG, "No pending authorization action")
+            return
+        }
+
+        viewModelScope.launch {
+            // Show loading
+            _state.update {
+                it.copy(
+                    authorizationDialogState = dialogState.copy(isLoading = true, error = null)
+                )
+            }
+
+            authorizeProcessUseCase(userCode, password, dialogState.processCode)
+                .onSuccess {
+                    // Authorization successful - close dialog and execute pending action
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = AuthorizationDialogState(),
+                            pendingAuthorizationAction = null
+                        )
+                    }
+
+                    // Execute the pending action
+                    executePendingAction(pendingAction)
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Authorization failed: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = dialogState.copy(
+                                isLoading = false,
+                                error = error.message
+                            )
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun executePendingAction(pendingAction: HomePendingAction) {
+        when (pendingAction) {
+            is HomePendingAction.OpenTerminal -> onNavigateToProcessCallback?.invoke("openTerminal")
+            is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
+            is HomePendingAction.CloseDatafono -> showTodoDialog("Cierre de datafono")
+            is HomePendingAction.Billing -> checkPrinterConnection()
+            is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
+            is HomePendingAction.AdvancedOptions -> onNavigateToAdvancedOptionsCallback?.invoke()
         }
     }
 }

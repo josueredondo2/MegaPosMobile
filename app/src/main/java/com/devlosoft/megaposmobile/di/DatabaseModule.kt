@@ -5,9 +5,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.core.common.Constants
+import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.database.MIGRATION_1_2
 import com.devlosoft.megaposmobile.data.local.database.MIGRATION_2_3
+import com.devlosoft.megaposmobile.data.local.database.MIGRATION_3_4
 import com.devlosoft.megaposmobile.data.local.database.MegaPosDatabase
 import dagger.Module
 import dagger.Provides
@@ -28,13 +30,13 @@ object DatabaseModule {
             MegaPosDatabase::class.java,
             Constants.DATABASE_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .apply {
                 // Solo en DEBUG: si falla una migración, borra y recrea la DB
                 // En RELEASE: la app crasheará si falta una migración (esto es intencional
                 // para detectar errores antes de publicar)
                 if (BuildConfig.DEBUG) {
-                    fallbackToDestructiveMigration()
+                    fallbackToDestructiveMigration(dropAllTables = true)
                 }
             }
             .build()
@@ -44,5 +46,11 @@ object DatabaseModule {
     @Singleton
     fun provideServerConfigDao(database: MegaPosDatabase): ServerConfigDao {
         return database.serverConfigDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideActiveTransactionDao(database: MegaPosDatabase): ActiveTransactionDao {
+        return database.activeTransactionDao()
     }
 }

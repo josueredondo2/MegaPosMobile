@@ -4,9 +4,16 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
-import com.devlosoft.megaposmobile.data.remote.dto.CreateTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
+import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
+import com.devlosoft.megaposmobile.data.local.entity.ActiveTransactionEntity
+import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
@@ -19,7 +26,8 @@ import javax.inject.Inject
 
 class BillingRepositoryImpl @Inject constructor(
     private val customerApi: CustomerApi,
-    private val transactionApi: TransactionApi
+    private val transactionApi: TransactionApi,
+    private val activeTransactionDao: ActiveTransactionDao
 ) : BillingRepository {
 
     override suspend fun searchCustomer(identification: String): Flow<Resource<List<Customer>>> = flow {
@@ -42,70 +50,48 @@ class BillingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun createTransaction(
-        sessionId: String,
-        workstationId: String,
-        customerId: String?,
-        customerIdType: String?,
-        customerName: String?
-    ): Flow<Resource<String>> = flow {
-        emit(Resource.Loading())
-        try {
-            val request = CreateTransactionRequestDto(
-                sessionId = sessionId,
-                workstationId = workstationId,
-                customerId = customerId,
-                customerIdType = customerIdType,
-                customerName = customerName
-            )
-            val response = transactionApi.createTransaction(request)
-            if (response.isSuccessful) {
-                val transactionCode = response.body()?.transactionCode
-                if (transactionCode != null) {
-                    emit(Resource.Success(transactionCode))
-                } else {
-                    emit(Resource.Error("Respuesta vacía del servidor"))
-                }
-            } else {
-                val errorBody = response.errorBody()?.string()
-                val errorResponse = ErrorResponseDto.fromJson(errorBody)
-                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
-                emit(Resource.Error(errorMessage))
-            }
-        } catch (e: IOException) {
-            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
-        } catch (e: Exception) {
-            emit(Resource.Error("Error inesperado: ${e.message}"))
-        }
-    }
-
     override suspend fun addMaterial(
         transactionId: String,
         itemPosId: String,
         quantity: Double,
-        partyAffiliationTypeCode: String?
-    ): Flow<Resource<InvoiceData>> = flow {
+        partyAffiliationTypeCode: String?,
+        sessionId: String?,
+        workstationId: String?,
+        customerId: String?,
+        customerIdType: String?,
+        customerName: String?,
+        isAuthorized: Boolean,
+        authorizedBy: String?
+    ): Flow<Resource<AddMaterialResult>> = flow {
         emit(Resource.Loading())
         try {
             val request = AddMaterialRequestDto(
                 transactionId = transactionId,
                 itemPosId = itemPosId,
                 quantity = quantity,
-                partyAffiliationTypeCode = partyAffiliationTypeCode
+                partyAffiliationTypeCode = partyAffiliationTypeCode,
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                isAuthorized = isAuthorized,
+                authorizedBy = authorizedBy
             )
             val response = transactionApi.addMaterial(request)
             if (response.isSuccessful) {
-                val invoiceData = response.body()?.invoiceData?.toDomain()
-                if (invoiceData != null) {
-                    emit(Resource.Success(invoiceData))
-                } else {
-                    emit(Resource.Error("Respuesta vacía del servidor"))
-                }
+                val body = response.body()
+                val invoiceData = body?.invoiceData?.toDomain() ?: InvoiceData()
+                val result = AddMaterialResult(
+                    transactionId = body?.transactionId,
+                    invoiceData = invoiceData
+                )
+                emit(Resource.Success(result))
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)
                 val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
-                emit(Resource.Error(errorMessage))
+                emit(Resource.Error(errorMessage, errorCode = errorResponse?.errorCode))
             }
         } catch (e: IOException) {
             emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
@@ -187,13 +173,15 @@ class BillingRepositoryImpl @Inject constructor(
 
     override suspend fun canRecoverTransaction(
         sessionId: String,
-        workstationId: String
+        workstationId: String,
+        transactionId: String?
     ): Flow<Resource<TransactionRecoveryResult>> = flow {
         emit(Resource.Loading())
         try {
             val response = transactionApi.canRecoverTransaction(
                 sessionId = sessionId,
-                workstationId = workstationId
+                workstationId = workstationId,
+                transactionId = transactionId
             )
             if (response.isSuccessful) {
                 val result = response.body()?.toDomain()
@@ -213,5 +201,222 @@ class BillingRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             emit(Resource.Error("Error inesperado: ${e.message}"))
         }
+    }
+
+    override suspend fun updateTransactionCustomer(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String,
+        customerId: Int,
+        customerIdType: String,
+        customerName: String,
+        affiliateType: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = UpdateTransactionCustomerRequestDto(
+                transactionId = transactionId,
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                affiliateType = affiliateType
+            )
+            val response = transactionApi.updateTransactionCustomer(request)
+            if (response.isSuccessful) {
+                emit(Resource.Success(true))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun getTransactionDetails(
+        transactionId: String
+    ): Flow<Resource<InvoiceData>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.getTransactionDetails(transactionId)
+            if (response.isSuccessful) {
+                val invoiceData = response.body()?.toDomain() ?: InvoiceData()
+                emit(Resource.Success(invoiceData))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun pauseTransaction(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = PauseTransactionRequestDto(
+                transactionId = transactionId,
+                sessionId = sessionId,
+                workstationId = workstationId
+            )
+            val response = transactionApi.pauseTransaction(request)
+            if (response.isSuccessful) {
+                val success = response.body()?.success ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    val message = response.body()?.message ?: "Error al pausar transacción"
+                    emit(Resource.Error(message))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun abortTransaction(
+        sessionId: String,
+        workstationId: String,
+        transactionId: String,
+        reason: String,
+        authorizingOperator: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = AbortTransactionRequestDto(
+                sessionId = sessionId,
+                workstationId = workstationId,
+                transactionId = transactionId,
+                reason = reason,
+                authorizingOperator = authorizingOperator
+            )
+            val response = transactionApi.abortTransaction(request)
+            if (response.isSuccessful) {
+                val success = response.body()?.success ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    val message = response.body()?.message ?: "Error al abortar transacción"
+                    emit(Resource.Error(message))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun voidItem(
+        transactionId: String,
+        itemPosId: String,
+        authorizedOperator: String,
+        affiliateType: String,
+        deleteAll: Boolean
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = VoidItemRequestDto(
+                itemPosId = itemPosId,
+                authorizedOperator = authorizedOperator,
+                affiliateType = affiliateType,
+                deleteAll = deleteAll
+            )
+            val response = transactionApi.voidItem(transactionId, request)
+            if (response.isSuccessful) {
+                val success = response.body() ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    emit(Resource.Error("Error al eliminar artículo"))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun changeQuantity(
+        transactionId: String,
+        itemPosId: String,
+        lineNumber: Int,
+        newQuantity: Double,
+        partyAffiliationTypeCode: String,
+        isAuthorized: Boolean,
+        authorizedBy: String?
+    ): Flow<Resource<InvoiceData>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = ChangeQuantityRequestDto(
+                itemPosId = itemPosId,
+                lineNumber = lineNumber,
+                newQuantity = newQuantity,
+                partyAffiliationTypeCode = partyAffiliationTypeCode,
+                isAuthorized = isAuthorized,
+                authorizedBy = authorizedBy
+            )
+            val response = transactionApi.changeQuantity(transactionId, request)
+            if (response.isSuccessful) {
+                val invoiceData = response.body()?.toDomain() ?: InvoiceData()
+                emit(Resource.Success(invoiceData))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    // Active transaction persistence methods
+    override suspend fun saveActiveTransactionId(transactionId: String) {
+        activeTransactionDao.saveActiveTransaction(
+            ActiveTransactionEntity(transactionId = transactionId)
+        )
+    }
+
+    override suspend fun getActiveTransactionId(): String? {
+        return activeTransactionDao.getActiveTransaction()?.transactionId
+    }
+
+    override suspend fun clearActiveTransactionId() {
+        activeTransactionDao.clearActiveTransaction()
     }
 }

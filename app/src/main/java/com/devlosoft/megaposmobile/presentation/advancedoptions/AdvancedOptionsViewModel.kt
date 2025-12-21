@@ -7,6 +7,7 @@ import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterManager
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
+import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,9 @@ class AdvancedOptionsViewModel @Inject constructor(
             }
             is AdvancedOptionsEvent.DatafonUrlChanged -> {
                 _state.update { it.copy(datafonUrl = event.datafonUrl) }
+            }
+            is AdvancedOptionsEvent.DatafonoProviderChanged -> {
+                _state.update { it.copy(datafonoProvider = event.provider) }
             }
             is AdvancedOptionsEvent.PrinterIpChanged -> {
                 _state.update { it.copy(printerIp = event.printerIp) }
@@ -84,6 +88,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                         it.copy(
                             hostname = config.serverName,
                             datafonUrl = config.datafonUrl,
+                            datafonoProvider = DatafonoProvider.fromString(config.datafonoProvider),
                             printerIp = config.printerIp,
                             printerModel = PrinterModel.fromString(config.printerModel),
                             usePrinterIp = config.usePrinterIp,
@@ -266,6 +271,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                     isActive = true,
                     lastConnected = existingConfig?.lastConnected,
                     datafonUrl = _state.value.datafonUrl,
+                    datafonoProvider = _state.value.datafonoProvider.name,
                     printerIp = _state.value.printerIp,
                     printerBluetoothAddress = _state.value.selectedBluetoothDevice?.address ?: "",
                     printerBluetoothName = _state.value.selectedBluetoothDevice?.name ?: "",

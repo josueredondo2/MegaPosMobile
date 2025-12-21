@@ -17,4 +17,15 @@ sealed class HomeEvent {
     data object DismissOpenTerminalSuccess : HomeEvent()
     data object DismissCloseTerminalError : HomeEvent()
     data object DismissCloseTerminalSuccess : HomeEvent()
+
+    // Authorization events - Request actions that may require authorization
+    data object RequestOpenTerminal : HomeEvent()
+    data object RequestCloseTerminal : HomeEvent()
+    data object RequestCloseDatafono : HomeEvent()
+    data object RequestBilling : HomeEvent()
+    data object RequestViewTransactions : HomeEvent()
+    data object RequestAdvancedOptions : HomeEvent()
+    data class SubmitAuthorization(val userCode: String, val password: String) : HomeEvent()
+    data object DismissAuthorizationDialog : HomeEvent()
+    data object ClearAuthorizationError : HomeEvent()
 }

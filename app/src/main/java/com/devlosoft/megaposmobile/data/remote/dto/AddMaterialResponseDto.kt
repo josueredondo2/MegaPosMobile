@@ -9,6 +9,9 @@ data class AddMaterialResponseDto(
     @SerializedName("requiresAuthorization")
     val requiresAuthorization: Boolean,
 
+    @SerializedName("transactionId")
+    val transactionId: String?,
+
     @SerializedName("invoiceData")
     val invoiceData: InvoiceDataDto?
 )
@@ -126,6 +129,9 @@ data class InvoiceItemDto(
         quantity = quantity ?: 0.0,
         total = total ?: 0.0,
         hasDiscount = hasDiscount ?: false,
-        isDeleted = isDeleted ?: false
+        isDeleted = isDeleted ?: false,
+        isSponsor = isSponsor ?: false,
+        isTaxExempt = isTaxExempt ?: false,
+        hasPackaging = !packageItemId.isNullOrBlank()
     )
 }

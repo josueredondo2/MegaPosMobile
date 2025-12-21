@@ -2,7 +2,10 @@ package com.devlosoft.megaposmobile.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-data class CreateTransactionRequestDto(
+data class UpdateTransactionCustomerRequestDto(
+    @SerializedName("transactionId")
+    val transactionId: String,
+
     @SerializedName("sessionId")
     val sessionId: String,
 
@@ -10,11 +13,14 @@ data class CreateTransactionRequestDto(
     val workstationId: String,
 
     @SerializedName("customerId")
-    val customerId: String? = null,
+    val customerId: Int,
 
     @SerializedName("customerIdType")
-    val customerIdType: String? = null,
+    val customerIdType: String,
 
     @SerializedName("customerName")
-    val customerName: String? = null
+    val customerName: String,
+
+    @SerializedName("affiliateType")
+    val affiliateType: String
 )

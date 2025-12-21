@@ -2,6 +2,8 @@ package com.devlosoft.megaposmobile.presentation.billing
 
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.UserPermissions
+import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 
 data class BillingState(
     // Customer search state
@@ -35,5 +37,70 @@ data class BillingState(
     // Recovery check state
     val isCheckingRecovery: Boolean = false,
     val recoveryCheckError: String? = null,
-    val hasRecoverableTransaction: Boolean = false
+    val hasRecoverableTransaction: Boolean = false,
+
+    // User permissions
+    val userPermissions: UserPermissions? = null,
+
+    // Authorization dialog state
+    val authorizationDialogState: AuthorizationDialogState = AuthorizationDialogState(),
+    val pendingAuthorizationAction: PendingAuthorizationAction? = null,
+
+    // TODO dialog state (for unimplemented features)
+    val showTodoDialog: Boolean = false,
+    val todoDialogMessage: String = "",
+
+    // Pause transaction state
+    val showPauseConfirmDialog: Boolean = false,
+    val isPausingTransaction: Boolean = false,
+    val pauseTransactionError: String? = null,
+    val shouldNavigateAfterPause: Boolean = false,
+
+    // Abort transaction state
+    val showAbortConfirmDialog: Boolean = false,
+    val abortReason: String = "",
+    val abortAuthorizingOperator: String = "",
+    val isAbortingTransaction: Boolean = false,
+    val abortTransactionError: String? = null,
+    val shouldNavigateAfterAbort: Boolean = false,
+
+    // Delete line state
+    val isDeletingLine: Boolean = false,
+    val deleteLineError: String? = null,
+
+    // Change quantity state
+    val showChangeQuantityDialog: Boolean = false,
+    val changeQuantityItemId: String = "",
+    val changeQuantityItemName: String = "",
+    val changeQuantityLineNumber: Int = 0,
+    val changeQuantityCurrentQty: Double = 0.0,
+    val changeQuantityNewQty: String = "",
+    val changeQuantityAuthorizedBy: String? = null, // Stores who authorized (user or authorizer)
+    val isChangingQuantity: Boolean = false,
+    val changeQuantityError: String? = null,
+
+    // Print error state (for pause receipt)
+    val showPrintErrorDialog: Boolean = false,
+    val printErrorMessage: String? = null,
+    val pendingPrintText: String? = null,
+    val isPrinting: Boolean = false
 )
+
+/**
+ * Represents an action that requires authorization
+ */
+sealed class PendingAuthorizationAction {
+    data class DeleteLine(val itemId: String) : PendingAuthorizationAction()
+    data class ChangeQuantity(
+        val itemId: String,
+        val lineNumber: Int,
+        val newQuantity: Double
+    ) : PendingAuthorizationAction()
+    data object AbortTransaction : PendingAuthorizationAction()
+    data object PauseTransaction : PendingAuthorizationAction()
+    data class AuthorizeMaterial(
+        val itemPosId: String,
+        val quantity: Double,
+        val partyAffiliationTypeCode: String?
+    ) : PendingAuthorizationAction()
+}

@@ -9,6 +9,7 @@ object JwtDecoder {
         val userName: String?,
         val userCode: String?,
         val sessionId: String?,
+        val businessUnitName: String?,
         val exp: Long?,
         val iat: Long?
     )
@@ -29,6 +30,7 @@ object JwtDecoder {
                 userName = if (jsonObject.has("UserName")) jsonObject.getString("UserName") else null,
                 userCode = if (jsonObject.has("UserCode")) jsonObject.getString("UserCode") else null,
                 sessionId = if (jsonObject.has("SessionId")) jsonObject.getString("SessionId") else null,
+                businessUnitName = if (jsonObject.has("BusinessUnitName")) jsonObject.getString("BusinessUnitName") else null,
                 exp = if (jsonObject.has("exp")) jsonObject.getLong("exp") else null,
                 iat = if (jsonObject.has("iat")) jsonObject.getLong("iat") else null
             )

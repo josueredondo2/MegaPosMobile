@@ -41,8 +41,31 @@ class AuthRepositoryImpl @Inject constructor(
                         accessToken = token.accessToken,
                         userCode = jwtPayload?.userCode ?: code,
                         userName = jwtPayload?.userName,
-                        sessionId = jwtPayload?.sessionId
+                        sessionId = jwtPayload?.sessionId,
+                        businessUnitName = jwtPayload?.businessUnitName
                     )
+
+                    // Fetch and save user permissions after successful login
+                    try {
+                        val permissionsResponse = authApi.getUserPermissions()
+                        if (permissionsResponse.isSuccessful) {
+                            permissionsResponse.body()?.let { permissionsDto ->
+                                val permissions = permissionsDto.toDomain()
+                                sessionManager.saveUserPermissions(permissions)
+                            }
+                        } else {
+                            // If we can't fetch permissions, clear session and return error
+                            sessionManager.clearSession()
+                            emit(Resource.Error("Error al obtener permisos de usuario"))
+                            return@flow
+                        }
+                    } catch (e: Exception) {
+                        // If permissions fetch fails, clear session and return error
+                        sessionManager.clearSession()
+                        emit(Resource.Error("Error al verificar permisos: ${e.message}"))
+                        return@flow
+                    }
+
                     emit(Resource.Success(token))
                 } ?: emit(Resource.Error("Respuesta vacía del servidor"))
             } else {
