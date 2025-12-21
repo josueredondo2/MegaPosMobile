@@ -152,20 +152,90 @@ class ProcessViewModel @Inject constructor(
     private suspend fun fetchAndPrintDocuments(transactionId: String) {
         Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionId")
 
+        _state.update {
+            it.copy(
+                isPrinting = true,
+                pendingPrintTransactionCode = transactionId
+            )
+        }
+
         printDocumentsUseCase(transactionId)
             .onSuccess { printedCount ->
                 Log.d(TAG, "Successfully printed $printedCount documents")
                 _state.update {
-                    it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
+                    it.copy(
+                        status = ProcessStatus.Success("La transacción fue cerrada con éxito"),
+                        isPrinting = false,
+                        pendingPrintTransactionCode = null
+                    )
                 }
             }
             .onFailure { error ->
                 Log.e(TAG, "Error printing documents: ${error.message}")
-                // Still show success for the transaction, just log the print error
+                // Show print error with retry/skip options
                 _state.update {
-                    it.copy(status = ProcessStatus.Success("La transacción fue cerrada con éxito"))
+                    it.copy(
+                        status = ProcessStatus.PrintError(
+                            error.message ?: "Error al imprimir los documentos"
+                        ),
+                        isPrinting = false
+                        // Keep pendingPrintTransactionCode for retry
+                    )
                 }
             }
+    }
+
+    fun retryPrint() {
+        val transactionCode = _state.value.pendingPrintTransactionCode
+        if (transactionCode.isNullOrBlank()) {
+            Log.e(TAG, "No pending print transaction to retry")
+            skipPrint()
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    status = ProcessStatus.Loading,
+                    loadingMessage = "Reintentando impresión...",
+                    isPrinting = true
+                )
+            }
+
+            printDocumentsUseCase(transactionCode)
+                .onSuccess { printedCount ->
+                    Log.d(TAG, "Retry print successful: $printedCount documents")
+                    _state.update {
+                        it.copy(
+                            status = ProcessStatus.Success("La transacción fue cerrada con éxito"),
+                            isPrinting = false,
+                            pendingPrintTransactionCode = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Retry print failed: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            status = ProcessStatus.PrintError(
+                                error.message ?: "Error al imprimir los documentos"
+                            ),
+                            isPrinting = false
+                        )
+                    }
+                }
+        }
+    }
+
+    fun skipPrint() {
+        Log.d(TAG, "Skipping print, showing success")
+        _state.update {
+            it.copy(
+                status = ProcessStatus.Success("La transacción fue cerrada con éxito"),
+                isPrinting = false,
+                pendingPrintTransactionCode = null
+            )
+        }
     }
 
     private fun openTerminal() {

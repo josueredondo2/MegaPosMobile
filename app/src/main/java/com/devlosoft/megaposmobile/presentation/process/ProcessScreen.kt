@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.process
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +61,11 @@ fun ProcessScreen(
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
 
+    // Disable back button - navigation only through screen buttons
+    BackHandler(enabled = true) {
+        // Do nothing - block back navigation
+    }
+
     // Start the process when screen is launched
     LaunchedEffect(processType) {
         if (autoStartProcess) {
@@ -112,6 +118,15 @@ fun ProcessScreen(
                                 onRetryClick = onRetry,
                                 onBackClick = onBack,
                                 backButtonText = errorBackButtonText
+                            )
+                        }
+                        is ProcessStatus.PrintError -> {
+                            PrintErrorContent(
+                                message = status.message,
+                                onRetryPrintClick = { viewModel.retryPrint() },
+                                onSkipPrintClick = {
+                                    viewModel.skipPrint()
+                                }
                             )
                         }
                     }
@@ -283,6 +298,111 @@ private fun ErrorContent(
         ) {
             Text(
                 text = backButtonText,
+                fontSize = dimensions.fontSizeExtraLarge,
+                fontWeight = FontWeight.Medium,
+                color = MegaSuperWhite
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrintErrorContent(
+    message: String,
+    onRetryPrintClick: () -> Unit,
+    onSkipPrintClick: () -> Unit
+) {
+    val dimensions = LocalDimensions.current
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Orange circle with exclamation mark
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .background(ErrorOrange),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.PriorityHigh,
+                contentDescription = "Print Error",
+                tint = MegaSuperWhite,
+                modifier = Modifier.size(60.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+        // Title
+        Text(
+            text = "Error de Impresión",
+            fontSize = dimensions.fontSizeLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerSmall))
+
+        // Error message
+        Text(
+            text = message,
+            fontSize = dimensions.fontSizeMedium,
+            fontWeight = FontWeight.Normal,
+            color = Color.DarkGray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerSmall))
+
+        // Info message
+        Text(
+            text = "La transacción fue procesada exitosamente",
+            fontSize = dimensions.fontSizeSmall,
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
+
+        // Retry print button
+        Button(
+            onClick = onRetryPrintClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MegaSuperRed
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Reintentar impresión",
+                fontSize = dimensions.fontSizeExtraLarge,
+                fontWeight = FontWeight.Medium,
+                color = MegaSuperWhite
+            )
+        }
+
+        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+        // Skip print button (continue to new transaction)
+        Button(
+            onClick = onSkipPrintClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Gray
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Nueva transacción",
                 fontSize = dimensions.fontSizeExtraLarge,
                 fontWeight = FontWeight.Medium,
                 color = MegaSuperWhite

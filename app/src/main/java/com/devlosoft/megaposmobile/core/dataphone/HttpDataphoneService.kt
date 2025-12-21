@@ -6,6 +6,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
  * Implementación HTTP del servicio de datáfono.
@@ -60,9 +63,26 @@ class HttpDataphoneService(
                     Log.e(TAG, "Payment rejected: ${result.errorMessage}")
                     Result.failure(Exception(result.errorMessage ?: "Pago rechazado por el datáfono"))
                 }
+            } catch (e: ConnectException) {
+                Log.e(TAG, "Connection refused - SmartPos app may not be open", e)
+                Result.failure(Exception("No se pudo conectar con el datáfono.\nAsegúrese de que la app SmartPos esté abierta."))
+            } catch (e: SocketTimeoutException) {
+                Log.e(TAG, "Connection timeout - SmartPos app may not be responding", e)
+                Result.failure(Exception("Tiempo de espera agotado.\nAsegúrese de que la app SmartPos esté abierta."))
+            } catch (e: UnknownHostException) {
+                Log.e(TAG, "Unknown host - network issue or wrong IP", e)
+                Result.failure(Exception("No se encontró el datáfono.\nVerifique la IP y que esté en la misma red."))
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing payment", e)
-                Result.failure(Exception("Error al comunicarse con el datáfono: ${e.message}"))
+                val message = when {
+                    e.message?.contains("Connection refused", ignoreCase = true) == true ||
+                    e.message?.contains("ECONNREFUSED", ignoreCase = true) == true ->
+                        "No se pudo conectar con el datáfono.\nAsegúrese de que la app SmartPos esté abierta."
+                    e.message?.contains("timeout", ignoreCase = true) == true ->
+                        "Tiempo de espera agotado.\nAsegúrese de que la app SmartPos esté abierta."
+                    else -> "Error al comunicarse con el datáfono: ${e.message}"
+                }
+                Result.failure(Exception(message))
             }
         }
 
@@ -81,8 +101,19 @@ class HttpDataphoneService(
                 } else {
                     Result.failure(Exception("Error de conexión: código ${response.code}"))
                 }
+            } catch (e: ConnectException) {
+                Result.failure(Exception("No se pudo conectar con el datáfono.\nAsegúrese de que la app SmartPos esté abierta."))
+            } catch (e: SocketTimeoutException) {
+                Result.failure(Exception("Tiempo de espera agotado.\nAsegúrese de que la app SmartPos esté abierta."))
+            } catch (e: UnknownHostException) {
+                Result.failure(Exception("No se encontró el datáfono.\nVerifique la IP y que esté en la misma red."))
             } catch (e: Exception) {
-                Result.failure(Exception("No se pudo conectar con el datáfono: ${e.message}"))
+                val message = when {
+                    e.message?.contains("Connection refused", ignoreCase = true) == true ->
+                        "No se pudo conectar con el datáfono.\nAsegúrese de que la app SmartPos esté abierta."
+                    else -> "No se pudo conectar con el datáfono: ${e.message}"
+                }
+                Result.failure(Exception(message))
             }
         }
 }

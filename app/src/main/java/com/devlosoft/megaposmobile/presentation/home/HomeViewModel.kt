@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -48,6 +49,18 @@ class HomeViewModel @Inject constructor(
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     init {
+        // Load permissions synchronously BEFORE any UI rendering
+        // This prevents the menu from appearing "laggy" when loading elements
+        val permissions = runBlocking { sessionManager.getUserPermissionsSync() }
+        _state.value = _state.value.copy(
+            userPermissions = permissions,
+            canOpenTerminal = permissions?.shouldShow(UserPermissions.PROCESS_APERTURA_CAJA) ?: false,
+            canCloseTerminal = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_CAJA) ?: false,
+            canCloseDatafono = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false,
+            canBilling = permissions?.shouldShow(UserPermissions.PROCESS_FACTURAR) ?: false,
+            canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false,
+            canAdvancedOptions = permissions?.shouldShow(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
+        )
         loadHomeData()
     }
 
@@ -64,10 +77,7 @@ class HomeViewModel @Inject constructor(
             val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("es", "ES"))
             val currentDate = dateFormat.format(Date())
 
-            // Get user permissions
-            val permissions = sessionManager.getUserPermissionsSync()
-
-            // Get station status
+            // Get station status (permissions are already loaded in init)
             stationStatus.state.collect { status ->
                 _state.update {
                     it.copy(
@@ -76,16 +86,7 @@ class HomeViewModel @Inject constructor(
                         terminalName = terminalName,
                         stationStatus = stationStatus.getDisplayText(),
                         isStationOpen = status == StationState.OPEN,
-                        isLoading = false,
-                        // Store permissions for access validation
-                        userPermissions = permissions,
-                        // Set permissions for menu items (using 'show' property)
-                        canOpenTerminal = permissions?.shouldShow(UserPermissions.PROCESS_APERTURA_CAJA) ?: false,
-                        canCloseTerminal = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_CAJA) ?: false,
-                        canCloseDatafono = permissions?.shouldShow(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false,
-                        canBilling = permissions?.shouldShow(UserPermissions.PROCESS_FACTURAR) ?: false,
-                        canViewTransactions = permissions?.shouldShow(UserPermissions.PROCESS_REIMPRESION) ?: false,
-                        canAdvancedOptions = permissions?.shouldShow(UserPermissions.PROCESS_OPCIONES_AVANZADAS) ?: false
+                        isLoading = false
                     )
                 }
             }
