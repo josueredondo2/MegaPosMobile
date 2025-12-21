@@ -164,13 +164,22 @@ fun NavGraph(
                 processType = "payment",
                 viewModel = processViewModel,
                 onBack = {
+                    // Go back to TransactionDetail with items intact
+                    navController.popBackStack()
+                },
+                onRetry = {
+                    // Retry the payment with same parameters
+                    processViewModel.startPaymentProcess(args.transactionId, args.amount)
+                },
+                onSuccess = {
                     // Navigate to Billing for new transaction, skipping recovery check
                     navController.navigate(Billing(skipRecoveryCheck = true)) {
                         popUpTo<Home> { inclusive = false }
                     }
                 },
                 autoStartProcess = false,
-                successButtonText = "Nueva transacción"
+                successButtonText = "Nueva transacción",
+                errorBackButtonText = "Volver a la transacción"
             )
         }
     }

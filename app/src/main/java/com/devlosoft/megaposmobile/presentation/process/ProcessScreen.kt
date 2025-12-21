@@ -51,8 +51,11 @@ fun ProcessScreen(
     processType: String,
     viewModel: ProcessViewModel = hiltViewModel(),
     onBack: () -> Unit,
+    onRetry: (() -> Unit)? = null,
+    onSuccess: (() -> Unit)? = null,
     autoStartProcess: Boolean = true,
-    successButtonText: String = "Volver a menu"
+    successButtonText: String = "Volver a menu",
+    errorBackButtonText: String = "Volver a menu"
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -99,14 +102,16 @@ fun ProcessScreen(
                         is ProcessStatus.Success -> {
                             SuccessContent(
                                 message = status.message,
-                                onBackClick = onBack,
+                                onBackClick = onSuccess ?: onBack,
                                 buttonText = successButtonText
                             )
                         }
                         is ProcessStatus.Error -> {
                             ErrorContent(
                                 message = status.message,
-                                onBackClick = onBack
+                                onRetryClick = onRetry,
+                                onBackClick = onBack,
+                                backButtonText = errorBackButtonText
                             )
                         }
                     }
@@ -203,7 +208,9 @@ private fun SuccessContent(
 @Composable
 private fun ErrorContent(
     message: String,
-    onBackClick: () -> Unit
+    onRetryClick: (() -> Unit)? = null,
+    onBackClick: () -> Unit,
+    backButtonText: String = "Volver a menu"
 ) {
     val dimensions = LocalDimensions.current
 
@@ -240,19 +247,42 @@ private fun ErrorContent(
 
         Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
 
-        // Back to menu button
+        // Retry button (only shown if onRetryClick is provided)
+        if (onRetryClick != null) {
+            Button(
+                onClick = onRetryClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(dimensions.buttonHeight),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MegaSuperRed
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Reintentar pago",
+                    fontSize = dimensions.fontSizeExtraLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MegaSuperWhite
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+        }
+
+        // Back button
         Button(
             onClick = onBackClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensions.buttonHeight),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MegaSuperRed
+                containerColor = if (onRetryClick != null) Color.Gray else MegaSuperRed
             ),
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = "Volver a menu",
+                text = backButtonText,
                 fontSize = dimensions.fontSizeExtraLarge,
                 fontWeight = FontWeight.Medium,
                 color = MegaSuperWhite

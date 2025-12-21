@@ -1,7 +1,9 @@
 package com.devlosoft.megaposmobile.core.dataphone
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import com.devlosoft.megaposmobile.MainActivity
 import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
@@ -68,7 +70,12 @@ class DataphoneManager @Inject constructor(
             httpClient = httpClient
         )
 
-        return service.processPayment(amount)
+        val result = service.processPayment(amount)
+
+        // Traer la app al frente después del pago
+        bringAppToFront()
+
+        return result
     }
 
     /**
@@ -122,5 +129,22 @@ class DataphoneManager @Inject constructor(
         )
 
         return service.testConnection()
+    }
+
+    /**
+     * Trae la app al frente después de que el datáfono complete el pago.
+     */
+    private fun bringAppToFront() {
+        try {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            Log.d(TAG, "App brought to front after payment")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to bring app to front", e)
+        }
     }
 }
