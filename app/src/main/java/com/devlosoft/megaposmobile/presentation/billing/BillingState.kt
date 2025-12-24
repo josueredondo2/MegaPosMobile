@@ -79,10 +79,11 @@ data class BillingState(
     val isChangingQuantity: Boolean = false,
     val changeQuantityError: String? = null,
 
-    // Print error state (for pause receipt)
+    // Print error state (for pause receipt and finalize documents)
     val showPrintErrorDialog: Boolean = false,
     val printErrorMessage: String? = null,
     val pendingPrintText: String? = null,
+    val pendingPrintTransactionCode: String? = null, // For retry print documents after finalize
     val isPrinting: Boolean = false
 )
 

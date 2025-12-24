@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.data.remote.interceptor
 
+import com.devlosoft.megaposmobile.core.util.NetworkUtils
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import kotlinx.coroutines.flow.first
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 class AuthInterceptor @Inject constructor(
     private val sessionManager: SessionManager,
-    private val serverConfigDao: ServerConfigDao
+    private val serverConfigDao: ServerConfigDao,
+    private val networkUtils: NetworkUtils
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -42,10 +44,14 @@ class AuthInterceptor @Inject constructor(
             .url(newUrl)
             .build()
 
+        // Get device WiFi IP address
+        val deviceIp = networkUtils.getWifiIpAddress()
+
         // Skip auth header for login endpoint
         if (newRequest.url.encodedPath.endsWith("login")) {
             val requestWithHostname = newRequest.newBuilder()
                 .header("x-Hostname", hostname)
+                .header("x-Device-IP", deviceIp)
                 .build()
             return chain.proceed(requestWithHostname)
         }
@@ -58,10 +64,12 @@ class AuthInterceptor @Inject constructor(
             newRequest.newBuilder()
                 .header("Authorization", "Bearer $token")
                 .header("x-Hostname", hostname)
+                .header("x-Device-IP", deviceIp)
                 .build()
         } else {
             newRequest.newBuilder()
                 .header("x-Hostname", hostname)
+                .header("x-Device-IP", deviceIp)
                 .build()
         }
 

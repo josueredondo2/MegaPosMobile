@@ -60,7 +60,6 @@ fun ConfigurationScreen(
         if (state.isSaved) {
             snackbarHostState.showSnackbar("Configuración guardada exitosamente")
             viewModel.onEvent(ConfigurationEvent.ClearSavedFlag)
-            onBack()
         }
     }
 

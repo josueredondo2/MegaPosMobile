@@ -37,7 +37,16 @@ data class HomeState(
 
     // Authorization dialog state
     val authorizationDialogState: AuthorizationDialogState = AuthorizationDialogState(),
-    val pendingAuthorizationAction: HomePendingAction? = null
+    val pendingAuthorizationAction: HomePendingAction? = null,
+
+    // Close Datafono state
+    val showCloseDatafonoConfirmDialog: Boolean = false,
+    val isClosingDatafono: Boolean = false,
+    val closeDatafonoError: String? = null,
+    val showCloseDatafonoSuccessDialog: Boolean = false,
+    val closeDatafonoMessage: String = "",
+    val closeDatafonoSalesCount: Int = 0,
+    val closeDatafonoSalesTotal: Double = 0.0
 )
 
 /**

@@ -27,4 +27,10 @@ interface ServerConfigDao {
 
     @Query("UPDATE server_config SET lastConnected = :timestamp WHERE id = :id")
     suspend fun updateLastConnected(id: Int, timestamp: Long)
+
+    @Query("UPDATE server_config SET dataphoneTerminalId = :terminalId WHERE id = 1")
+    suspend fun updateDataphoneTerminalId(terminalId: String)
+
+    @Query("SELECT dataphoneTerminalId FROM server_config WHERE id = 1")
+    suspend fun getDataphoneTerminalId(): String?
 }

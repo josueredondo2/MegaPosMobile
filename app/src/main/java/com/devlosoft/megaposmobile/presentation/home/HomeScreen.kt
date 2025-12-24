@@ -129,6 +129,82 @@ fun HomeScreen(
         }
     )
 
+    // Close Datafono Confirmation Dialog
+    if (state.showCloseDatafonoConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoConfirmDialog) },
+            title = { Text(text = "Cierre de Datafono") },
+            text = { Text(text = "¿Está seguro que desea realizar el cierre del lote de ventas del datafono?") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.ConfirmCloseDatafono) }) {
+                    Text("Sí, Cerrar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoConfirmDialog) }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Close Datafono Loading Dialog
+    if (state.isClosingDatafono) {
+        AlertDialog(
+            onDismissRequest = { /* Cannot dismiss while loading */ },
+            title = { Text(text = "Procesando Cierre") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = "Comunicando con el datafono...")
+                }
+            },
+            confirmButton = { }
+        )
+    }
+
+    // Close Datafono Error Dialog
+    state.closeDatafonoError?.let { errorMessage ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoError) },
+            title = { Text(text = "Error en Cierre") },
+            text = { Text(text = errorMessage) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoError) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // Close Datafono Success Dialog
+    if (state.showCloseDatafonoSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoSuccess) },
+            title = { Text(text = "Cierre Exitoso") },
+            text = {
+                Column {
+                    Text(text = state.closeDatafonoMessage)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Ventas: ${state.closeDatafonoSalesCount}",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Total: ₡${String.format("%,.2f", state.closeDatafonoSalesTotal)}",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(HomeEvent.DismissCloseDatafonoSuccess) }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             Column(

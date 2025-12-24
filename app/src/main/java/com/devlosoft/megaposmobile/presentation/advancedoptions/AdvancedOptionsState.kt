@@ -8,7 +8,7 @@ data class AdvancedOptionsState(
     // Configuration fields
     val hostname: String = "",
     val datafonUrl: String = "",
-    val datafonoProvider: DatafonoProvider = DatafonoProvider.BAC,
+    val datafonoProvider: DatafonoProvider = DatafonoProvider.PAX_BAC,
     val printerIp: String = "",
 
     // Printer model

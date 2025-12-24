@@ -82,7 +82,6 @@ fun AdvancedOptionsScreen(
         if (state.isSaved) {
             snackbarHostState.showSnackbar("Configuración guardada exitosamente")
             viewModel.onEvent(AdvancedOptionsEvent.ClearSavedFlag)
-            onBack()
         }
     }
 

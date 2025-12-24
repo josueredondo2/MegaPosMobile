@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.process
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,11 +52,19 @@ fun ProcessScreen(
     processType: String,
     viewModel: ProcessViewModel = hiltViewModel(),
     onBack: () -> Unit,
+    onRetry: (() -> Unit)? = null,
+    onSuccess: (() -> Unit)? = null,
     autoStartProcess: Boolean = true,
-    successButtonText: String = "Volver a menu"
+    successButtonText: String = "Volver a menu",
+    errorBackButtonText: String = "Volver a menu"
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
+
+    // Disable back button - navigation only through screen buttons
+    BackHandler(enabled = true) {
+        // Do nothing - block back navigation
+    }
 
     // Start the process when screen is launched
     LaunchedEffect(processType) {
@@ -99,14 +108,25 @@ fun ProcessScreen(
                         is ProcessStatus.Success -> {
                             SuccessContent(
                                 message = status.message,
-                                onBackClick = onBack,
+                                onBackClick = onSuccess ?: onBack,
                                 buttonText = successButtonText
                             )
                         }
                         is ProcessStatus.Error -> {
                             ErrorContent(
                                 message = status.message,
-                                onBackClick = onBack
+                                onRetryClick = onRetry,
+                                onBackClick = onBack,
+                                backButtonText = errorBackButtonText
+                            )
+                        }
+                        is ProcessStatus.PrintError -> {
+                            PrintErrorContent(
+                                message = status.message,
+                                onRetryPrintClick = { viewModel.retryPrint() },
+                                onSkipPrintClick = {
+                                    viewModel.skipPrint()
+                                }
                             )
                         }
                     }
@@ -203,7 +223,9 @@ private fun SuccessContent(
 @Composable
 private fun ErrorContent(
     message: String,
-    onBackClick: () -> Unit
+    onRetryClick: (() -> Unit)? = null,
+    onBackClick: () -> Unit,
+    backButtonText: String = "Volver a menu"
 ) {
     val dimensions = LocalDimensions.current
 
@@ -240,9 +262,116 @@ private fun ErrorContent(
 
         Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
 
-        // Back to menu button
+        // Retry button (only shown if onRetryClick is provided)
+        if (onRetryClick != null) {
+            Button(
+                onClick = onRetryClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(dimensions.buttonHeight),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MegaSuperRed
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Reintentar pago",
+                    fontSize = dimensions.fontSizeExtraLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MegaSuperWhite
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+        }
+
+        // Back button
         Button(
             onClick = onBackClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (onRetryClick != null) Color.Gray else MegaSuperRed
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = backButtonText,
+                fontSize = dimensions.fontSizeExtraLarge,
+                fontWeight = FontWeight.Medium,
+                color = MegaSuperWhite
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrintErrorContent(
+    message: String,
+    onRetryPrintClick: () -> Unit,
+    onSkipPrintClick: () -> Unit
+) {
+    val dimensions = LocalDimensions.current
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Orange circle with exclamation mark
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .background(ErrorOrange),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.PriorityHigh,
+                contentDescription = "Print Error",
+                tint = MegaSuperWhite,
+                modifier = Modifier.size(60.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+        // Title
+        Text(
+            text = "Error de Impresión",
+            fontSize = dimensions.fontSizeLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerSmall))
+
+        // Error message
+        Text(
+            text = message,
+            fontSize = dimensions.fontSizeMedium,
+            fontWeight = FontWeight.Normal,
+            color = Color.DarkGray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerSmall))
+
+        // Info message
+        Text(
+            text = "La transacción fue procesada exitosamente",
+            fontSize = dimensions.fontSizeSmall,
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
+
+        // Retry print button
+        Button(
+            onClick = onRetryPrintClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensions.buttonHeight),
@@ -252,7 +381,28 @@ private fun ErrorContent(
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = "Volver a menu",
+                text = "Reintentar impresión",
+                fontSize = dimensions.fontSizeExtraLarge,
+                fontWeight = FontWeight.Medium,
+                color = MegaSuperWhite
+            )
+        }
+
+        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+        // Skip print button (continue to new transaction)
+        Button(
+            onClick = onSkipPrintClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.buttonHeight),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Gray
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Nueva transacción",
                 fontSize = dimensions.fontSizeExtraLarge,
                 fontWeight = FontWeight.Medium,
                 color = MegaSuperWhite

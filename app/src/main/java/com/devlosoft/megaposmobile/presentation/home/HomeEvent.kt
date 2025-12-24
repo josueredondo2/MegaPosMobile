@@ -28,4 +28,11 @@ sealed class HomeEvent {
     data class SubmitAuthorization(val userCode: String, val password: String) : HomeEvent()
     data object DismissAuthorizationDialog : HomeEvent()
     data object ClearAuthorizationError : HomeEvent()
+
+    // Close Datafono events
+    data object ShowCloseDatafonoConfirmDialog : HomeEvent()
+    data object DismissCloseDatafonoConfirmDialog : HomeEvent()
+    data object ConfirmCloseDatafono : HomeEvent()
+    data object DismissCloseDatafonoError : HomeEvent()
+    data object DismissCloseDatafonoSuccess : HomeEvent()
 }

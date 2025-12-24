@@ -662,12 +662,21 @@ class BillingViewModel @Inject constructor(
     private suspend fun fetchAndPrintDocuments(transactionCode: String) {
         Log.d(TAG, "fetchAndPrintDocuments() called for transaction: $transactionCode")
 
+        _state.update {
+            it.copy(
+                isFinalizingTransaction = false,
+                isPrinting = true,
+                pendingPrintTransactionCode = transactionCode
+            )
+        }
+
         printDocumentsUseCase(transactionCode)
             .onSuccess { printedCount ->
                 Log.d(TAG, "Successfully printed $printedCount documents")
                 _state.update {
                     it.copy(
-                        isFinalizingTransaction = false,
+                        isPrinting = false,
+                        pendingPrintTransactionCode = null,
                         isTransactionFinalized = true,
                         shouldNavigateBackToBilling = true
                     )
@@ -675,12 +684,13 @@ class BillingViewModel @Inject constructor(
             }
             .onFailure { error ->
                 Log.e(TAG, "Error printing documents: ${error.message}")
-                // Still finalize the transaction UI, just log the print error
+                // Show print error dialog with retry/skip options
                 _state.update {
                     it.copy(
-                        isFinalizingTransaction = false,
-                        isTransactionFinalized = true,
-                        shouldNavigateBackToBilling = true
+                        isPrinting = false,
+                        isTransactionFinalized = true, // Transaction is finalized, only print failed
+                        showPrintErrorDialog = true,
+                        printErrorMessage = error.message ?: "Error al imprimir los documentos"
                     )
                 }
             }
@@ -689,6 +699,17 @@ class BillingViewModel @Inject constructor(
     // Authorization methods
 
     private fun handleDeleteLineRequest(itemId: String, itemName: String) {
+        // Check if this is the only item in the invoice
+        val activeItems = _state.value.invoiceData.items.filter { !it.isDeleted }
+        if (activeItems.size <= 1) {
+            _state.update {
+                it.copy(
+                    deleteLineError = "No se puede eliminar la única línea de la factura"
+                )
+            }
+            return
+        }
+
         val permissions = _state.value.userPermissions
         val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ELIMINAR_LINEA) ?: false
 
@@ -1322,17 +1343,15 @@ class BillingViewModel @Inject constructor(
                             billingRepository.clearActiveTransactionId()
                             // Capture data before resetting state
                             val currentState = _state.value
-                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.size
+                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.sumOf { it.quantity }.toInt()
                             val subtotal = currentState.invoiceData.totals.subTotal
-                            val customerIdentification = currentState.selectedCustomer?.identification ?: "N/A"
                             val txnId = currentState.transactionCode
 
                             // Get user name and print
                             printPauseReceipt(
                                 transactionId = txnId,
                                 totalItems = totalItems,
-                                subtotal = subtotal,
-                                customerIdentification = customerIdentification
+                                subtotal = subtotal
                             )
                         }
                         is Resource.Error -> {
@@ -1364,8 +1383,7 @@ class BillingViewModel @Inject constructor(
     private fun printPauseReceipt(
         transactionId: String,
         totalItems: Int,
-        subtotal: Double,
-        customerIdentification: String
+        subtotal: Double
     ) {
         viewModelScope.launch {
             try {
@@ -1378,7 +1396,6 @@ class BillingViewModel @Inject constructor(
                     totalItems = totalItems,
                     subtotal = subtotal,
                     transactionId = transactionId,
-                    customerIdentification = customerIdentification,
                     businessUnitName = businessUnitName
                 )
 
@@ -1432,11 +1449,7 @@ class BillingViewModel @Inject constructor(
 
     private fun retryPrint() {
         val printText = _state.value.pendingPrintText
-        if (printText.isNullOrBlank()) {
-            Log.e(TAG, "No pending print text to retry")
-            skipPrint()
-            return
-        }
+        val printTransactionCode = _state.value.pendingPrintTransactionCode
 
         viewModelScope.launch {
             _state.update {
@@ -1447,48 +1460,101 @@ class BillingViewModel @Inject constructor(
                 )
             }
 
-            printerManager.printText(printText)
-                .onSuccess {
-                    Log.d(TAG, "Retry print successful")
-                    _state.update {
-                        it.copy(
-                            isPrinting = false,
-                            pendingPrintText = null,
-                            shouldNavigateAfterPause = true,
-                            transactionCode = "",
-                            isTransactionCreated = false,
-                            invoiceData = InvoiceData(),
-                            selectedCustomer = null
-                        )
-                    }
+            when {
+                // Case 1: Retry printing pause receipt (direct text)
+                !printText.isNullOrBlank() -> {
+                    printerManager.printText(printText)
+                        .onSuccess {
+                            Log.d(TAG, "Retry print pause receipt successful")
+                            _state.update {
+                                it.copy(
+                                    isPrinting = false,
+                                    pendingPrintText = null,
+                                    shouldNavigateAfterPause = true,
+                                    transactionCode = "",
+                                    isTransactionCreated = false,
+                                    invoiceData = InvoiceData(),
+                                    selectedCustomer = null
+                                )
+                            }
+                        }
+                        .onFailure { error ->
+                            Log.e(TAG, "Retry print pause receipt failed: ${error.message}")
+                            _state.update {
+                                it.copy(
+                                    isPrinting = false,
+                                    showPrintErrorDialog = true,
+                                    printErrorMessage = error.message ?: "Error al imprimir"
+                                )
+                            }
+                        }
                 }
-                .onFailure { error ->
-                    Log.e(TAG, "Retry print failed: ${error.message}")
-                    _state.update {
-                        it.copy(
-                            isPrinting = false,
-                            showPrintErrorDialog = true,
-                            printErrorMessage = error.message ?: "Error al imprimir"
-                        )
-                    }
+
+                // Case 2: Retry printing finalize documents
+                !printTransactionCode.isNullOrBlank() -> {
+                    printDocumentsUseCase(printTransactionCode)
+                        .onSuccess { printedCount ->
+                            Log.d(TAG, "Retry print documents successful: $printedCount documents")
+                            _state.update {
+                                it.copy(
+                                    isPrinting = false,
+                                    pendingPrintTransactionCode = null,
+                                    shouldNavigateBackToBilling = true
+                                )
+                            }
+                        }
+                        .onFailure { error ->
+                            Log.e(TAG, "Retry print documents failed: ${error.message}")
+                            _state.update {
+                                it.copy(
+                                    isPrinting = false,
+                                    showPrintErrorDialog = true,
+                                    printErrorMessage = error.message ?: "Error al imprimir los documentos"
+                                )
+                            }
+                        }
                 }
+
+                else -> {
+                    Log.e(TAG, "No pending print to retry")
+                    skipPrint()
+                }
+            }
         }
     }
 
     private fun skipPrint() {
-        Log.d(TAG, "Skipping print, navigating to billing")
-        _state.update {
-            it.copy(
-                showPrintErrorDialog = false,
-                printErrorMessage = null,
-                pendingPrintText = null,
-                isPrinting = false,
-                shouldNavigateAfterPause = true,
-                transactionCode = "",
-                isTransactionCreated = false,
-                invoiceData = InvoiceData(),
-                selectedCustomer = null
-            )
+        val isPauseReceipt = _state.value.pendingPrintText != null
+        val isFinalizeDocuments = _state.value.pendingPrintTransactionCode != null
+
+        Log.d(TAG, "Skipping print - isPauseReceipt: $isPauseReceipt, isFinalizeDocuments: $isFinalizeDocuments")
+
+        if (isFinalizeDocuments) {
+            // Skip printing finalize documents - just navigate to new transaction
+            _state.update {
+                it.copy(
+                    showPrintErrorDialog = false,
+                    printErrorMessage = null,
+                    pendingPrintTransactionCode = null,
+                    isPrinting = false,
+                    shouldNavigateBackToBilling = true
+                )
+            }
+        } else {
+            // Skip printing pause receipt - reset state and navigate
+            _state.update {
+                it.copy(
+                    showPrintErrorDialog = false,
+                    printErrorMessage = null,
+                    pendingPrintText = null,
+                    isPrinting = false,
+                    shouldNavigateAfterPause = true,
+                    transactionCode = "",
+                    isTransactionCreated = false,
+                    invoiceData = InvoiceData(),
+                    selectedCustomer = null
+                )
+            }
         }
     }
 }
