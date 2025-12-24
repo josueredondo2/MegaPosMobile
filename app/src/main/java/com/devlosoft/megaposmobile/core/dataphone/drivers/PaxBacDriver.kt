@@ -1,10 +1,14 @@
 package com.devlosoft.megaposmobile.core.dataphone.drivers
 
 import com.devlosoft.megaposmobile.core.dataphone.DataphoneDriver
+import com.devlosoft.megaposmobile.data.remote.dto.PaxCloseResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PaxResponseDto
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
+import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
 import com.google.gson.Gson
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * Driver para datáfonos PAX A920 de BAC Credomatic.
@@ -140,4 +144,106 @@ class PaxBacDriver : DataphoneDriver {
             )
         }
     }
+
+    override fun buildCloseUrl(baseUrl: String): String {
+        // Endpoint de cierre del PAX con formato de linea de 42 caracteres
+        return "$baseUrl/cierre?tamanoLinea=42&delimitador=|"
+    }
+
+    override fun parseCloseResponse(jsonResponse: String): DataphoneCloseResult {
+        return try {
+            val paxResponse = gson.fromJson(jsonResponse, PaxCloseResponseDto::class.java)
+            val ticketData = parseCloseTicket(paxResponse.ticket)
+
+            DataphoneCloseResult(
+                success = true,
+                terminal = ticketData.terminalId,
+                batchNumber = ticketData.batchNumber,
+                salesCount = ticketData.salesCount,
+                salesTotal = ticketData.salesTotal,
+                reversalsCount = 0,
+                reversalsTotal = 0.0,
+                netTotal = ticketData.salesTotal,
+                ticket = paxResponse.ticket,
+                errorMessage = null
+            )
+        } catch (e: Exception) {
+            DataphoneCloseResult(
+                success = false,
+                terminal = null,
+                batchNumber = null,
+                salesCount = 0,
+                salesTotal = 0.0,
+                reversalsCount = 0,
+                reversalsTotal = 0.0,
+                netTotal = 0.0,
+                ticket = null,
+                errorMessage = "Error al parsear respuesta de cierre: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Parsea el TICKET del cierre para extraer datos estructurados.
+     * Formato ejemplo del TICKET:
+     * "...TERMINAL ID LOGOSALE 000000030683005|...Fecha: 19/12/2025 Hora: 18:43 Lote: 000001|...VENTAS 0002 CRC1,010.00|..."
+     */
+    private fun parseCloseTicket(ticket: String?): CloseTicketData {
+        val result = CloseTicketData()
+        if (ticket.isNullOrEmpty()) return result
+
+        // Normalizar delimitadores (el PAX usa \n y | como separadores)
+        val normalizedTicket = ticket.replace("\\n", "\n").replace("|", "\n")
+        val lines = normalizedTicket.split("\n").filter { it.isNotBlank() }
+
+        for (line in lines) {
+            // Limpiar prefijos 's' usados en formato PAX
+            val cleanLine = line.trim().trimStart('s').trim()
+
+            // Extraer Terminal ID: "TERMINAL ID LOGOSALE 000000030683005"
+            if (cleanLine.contains("TERMINAL ID")) {
+                val parts = cleanLine.split(" ").filter { it.isNotBlank() }
+                if (parts.size >= 4) {
+                    result.terminalId = parts.last()
+                }
+            }
+
+            // Extraer Lote: "Fecha: 19/12/2025 Hora: 18:43 Lote: 000001"
+            if (cleanLine.contains("Lote:")) {
+                val loteRegex = Regex("Lote:\\s*(\\d+)")
+                loteRegex.find(cleanLine)?.let { match ->
+                    result.batchNumber = match.groupValues[1]
+                }
+            }
+
+            // Extraer VENTAS: "VENTAS 0002 CRC1,010.00"
+            if (cleanLine.startsWith("VENTAS")) {
+                val ventasRegex = Regex("VENTAS\\s+(\\d+)\\s+CRC([\\d,\\.]+)")
+                ventasRegex.find(cleanLine)?.let { match ->
+                    result.salesCount = match.groupValues[1].toIntOrNull() ?: 0
+                    result.salesTotal = parseCrcAmount(match.groupValues[2])
+                }
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Parsea monto en formato CRC: "1,010.00" -> 1010.00
+     */
+    private fun parseCrcAmount(amount: String): Double {
+        val cleanAmount = amount.replace(",", "")
+        return cleanAmount.toDoubleOrNull() ?: 0.0
+    }
+
+    /**
+     * Datos extraidos del TICKET de cierre
+     */
+    private data class CloseTicketData(
+        var terminalId: String = "",
+        var batchNumber: String = "",
+        var salesCount: Int = 0,
+        var salesTotal: Double = 0.0
+    )
 }

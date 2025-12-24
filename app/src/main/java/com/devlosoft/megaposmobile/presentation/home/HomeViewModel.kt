@@ -5,17 +5,23 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.dataphone.DataphoneManager
+import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
+import com.devlosoft.megaposmobile.core.state.DataphoneState
 import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.data.remote.dto.PaxCloseResponseDto
+import com.devlosoft.megaposmobile.domain.repository.PaymentRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
+import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +30,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,7 +45,11 @@ class HomeViewModel @Inject constructor(
     private val serverConfigDao: ServerConfigDao,
     private val stationStatus: StationStatus,
     private val printerManager: PrinterManager,
-    private val authorizeProcessUseCase: AuthorizeProcessUseCase
+    private val authorizeProcessUseCase: AuthorizeProcessUseCase,
+    private val dataphoneManager: DataphoneManager,
+    private val paymentRepository: PaymentRepository,
+    private val gson: Gson,
+    private val dataphoneState: DataphoneState
 ) : ViewModel() {
 
     companion object {
@@ -199,6 +210,30 @@ class HomeViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         authorizationDialogState = it.authorizationDialogState.copy(error = null)
+                    )
+                }
+            }
+            // Close Datafono events
+            is HomeEvent.ShowCloseDatafonoConfirmDialog -> {
+                _state.update { it.copy(showCloseDatafonoConfirmDialog = true) }
+            }
+            is HomeEvent.DismissCloseDatafonoConfirmDialog -> {
+                _state.update { it.copy(showCloseDatafonoConfirmDialog = false) }
+            }
+            is HomeEvent.ConfirmCloseDatafono -> {
+                _state.update { it.copy(showCloseDatafonoConfirmDialog = false) }
+                onNavigateToProcessCallback?.invoke("closeDataphone")
+            }
+            is HomeEvent.DismissCloseDatafonoError -> {
+                _state.update { it.copy(closeDatafonoError = null) }
+            }
+            is HomeEvent.DismissCloseDatafonoSuccess -> {
+                _state.update {
+                    it.copy(
+                        showCloseDatafonoSuccessDialog = false,
+                        closeDatafonoMessage = "",
+                        closeDatafonoSalesCount = 0,
+                        closeDatafonoSalesTotal = 0.0
                     )
                 }
             }
@@ -393,7 +428,8 @@ class HomeViewModel @Inject constructor(
     private fun handleRequestCloseDatafono() {
         val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_CIERRE_DATAFONO) ?: false
         if (hasAccess) {
-            showTodoDialog("Cierre de datafono")
+            // Show confirmation dialog
+            _state.update { it.copy(showCloseDatafonoConfirmDialog = true) }
         } else {
             _state.update {
                 it.copy(
@@ -518,10 +554,134 @@ class HomeViewModel @Inject constructor(
         when (pendingAction) {
             is HomePendingAction.OpenTerminal -> onNavigateToProcessCallback?.invoke("openTerminal")
             is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
-            is HomePendingAction.CloseDatafono -> showTodoDialog("Cierre de datafono")
+            is HomePendingAction.CloseDatafono -> onNavigateToProcessCallback?.invoke("closeDataphone")
             is HomePendingAction.Billing -> checkPrinterConnection()
             is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
             is HomePendingAction.AdvancedOptions -> onNavigateToAdvancedOptionsCallback?.invoke()
+        }
+    }
+
+    private fun closeDatafono() {
+        viewModelScope.launch {
+            _state.update { it.copy(isClosingDatafono = true, closeDatafonoError = null) }
+
+            try {
+                // Step 1: Get point of sale code from session
+                val pointOfSaleCode = sessionManager.getStationId().first() ?: run {
+                    _state.update {
+                        it.copy(
+                            isClosingDatafono = false,
+                            closeDatafonoError = "No se encontró el código de punto de venta"
+                        )
+                    }
+                    return@launch
+                }
+
+                // Step 2: Call PAX to execute the close (or simulation)
+                val dataphoneResultWrapper = dataphoneManager.closeDataphone()
+
+                val dataphoneResult = dataphoneResultWrapper.getOrElse { error ->
+                    _state.update {
+                        it.copy(
+                            isClosingDatafono = false,
+                            closeDatafonoError = error.message ?: "Error al cerrar el datáfono"
+                        )
+                    }
+                    return@launch
+                }
+
+                if (!dataphoneResult.success) {
+                    _state.update {
+                        it.copy(
+                            isClosingDatafono = false,
+                            closeDatafonoError = dataphoneResult.errorMessage ?: "Error al cerrar el datáfono"
+                        )
+                    }
+                    return@launch
+                }
+
+                // Step 3: Build the PaxCloseResponseDto from the result
+                val paxResponse = PaxCloseResponseDto(
+                    baseAmount = "CRC0.00",
+                    cardholder = "",
+                    recibo = "000000",
+                    stan = "000000",
+                    taxAmount = "CRC0.00",
+                    ticket = dataphoneResult.ticket ?: "",
+                    tipAmount = "CRC0.00",
+                    totalAmount = "CRC0.00",
+                    txnId = "EVENTOS"
+                )
+
+                // Step 4: Send the close data to megapos backend
+                // Use the terminal ID from global state, fallback to PAX result if not available
+                val terminalId = dataphoneState.getTerminalId().ifBlank {
+                    dataphoneResult.terminal ?: ""
+                }
+                Log.d(TAG, "Using terminal ID for close: $terminalId")
+                paymentRepository.closeDataphone(pointOfSaleCode, terminalId, paxResponse).collect { result ->
+                    when (result) {
+                        is Resource.Loading -> {
+                            // Already showing loading
+                        }
+                        is Resource.Success -> {
+                            val response = result.data
+
+                            // Imprimir comprobante de cierre
+                            try {
+                                val userName = sessionManager.getUserName().first() ?: "Usuario"
+                                val businessUnitName = sessionManager.getBusinessUnitName().first() ?: "Megasuper"
+                                val dateFormat = SimpleDateFormat("dd/MM/yyyy hh:mm:ss a", Locale("es", "CR"))
+
+                                val receiptText = LocalPrintTemplates.buildDataphoneCloseReceipt(
+                                    userName = userName,
+                                    terminalId = response?.terminalId ?: terminalId,
+                                    closeDate = response?.closeDate ?: dateFormat.format(Date()),
+                                    salesCount = response?.salesCount ?: dataphoneResult.salesCount,
+                                    salesTotal = response?.salesTotal ?: dataphoneResult.salesTotal,
+                                    reversalsCount = response?.reversalsCount ?: 0,
+                                    reversalsTotal = response?.reversalsTotal ?: 0.0,
+                                    netTotal = response?.netTotal ?: dataphoneResult.salesTotal,
+                                    voucher = response?.voucher,
+                                    businessUnitName = businessUnitName
+                                )
+
+                                printerManager.printText(receiptText)
+                                Log.d(TAG, "Comprobante de cierre impreso exitosamente")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error al imprimir comprobante de cierre", e)
+                            }
+
+                            _state.update {
+                                it.copy(
+                                    isClosingDatafono = false,
+                                    showCloseDatafonoSuccessDialog = true,
+                                    closeDatafonoMessage = response?.message ?: "Cierre completado exitosamente",
+                                    closeDatafonoSalesCount = response?.salesCount ?: dataphoneResult.salesCount,
+                                    closeDatafonoSalesTotal = response?.salesTotal ?: dataphoneResult.salesTotal
+                                )
+                            }
+                        }
+                        is Resource.Error -> {
+                            _state.update {
+                                it.copy(
+                                    isClosingDatafono = false,
+                                    closeDatafonoError = result.message ?: "Error al enviar cierre a megapos"
+                                )
+                            }
+                        }
+                    }
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during closeDatafono", e)
+                _state.update {
+                    it.copy(
+                        isClosingDatafono = false,
+                        closeDatafonoError = "Error inesperado: ${e.localizedMessage}"
+                    )
+                }
+            }
         }
     }
 }

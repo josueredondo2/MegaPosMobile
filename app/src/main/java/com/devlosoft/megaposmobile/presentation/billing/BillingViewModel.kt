@@ -699,6 +699,17 @@ class BillingViewModel @Inject constructor(
     // Authorization methods
 
     private fun handleDeleteLineRequest(itemId: String, itemName: String) {
+        // Check if this is the only item in the invoice
+        val activeItems = _state.value.invoiceData.items.filter { !it.isDeleted }
+        if (activeItems.size <= 1) {
+            _state.update {
+                it.copy(
+                    deleteLineError = "No se puede eliminar la única línea de la factura"
+                )
+            }
+            return
+        }
+
         val permissions = _state.value.userPermissions
         val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ELIMINAR_LINEA) ?: false
 
@@ -1332,17 +1343,15 @@ class BillingViewModel @Inject constructor(
                             billingRepository.clearActiveTransactionId()
                             // Capture data before resetting state
                             val currentState = _state.value
-                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.size
+                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.sumOf { it.quantity }.toInt()
                             val subtotal = currentState.invoiceData.totals.subTotal
-                            val customerIdentification = currentState.selectedCustomer?.identification ?: "N/A"
                             val txnId = currentState.transactionCode
 
                             // Get user name and print
                             printPauseReceipt(
                                 transactionId = txnId,
                                 totalItems = totalItems,
-                                subtotal = subtotal,
-                                customerIdentification = customerIdentification
+                                subtotal = subtotal
                             )
                         }
                         is Resource.Error -> {
@@ -1374,8 +1383,7 @@ class BillingViewModel @Inject constructor(
     private fun printPauseReceipt(
         transactionId: String,
         totalItems: Int,
-        subtotal: Double,
-        customerIdentification: String
+        subtotal: Double
     ) {
         viewModelScope.launch {
             try {
@@ -1388,7 +1396,6 @@ class BillingViewModel @Inject constructor(
                     totalItems = totalItems,
                     subtotal = subtotal,
                     transactionId = transactionId,
-                    customerIdentification = customerIdentification,
                     businessUnitName = businessUnitName
                 )
 

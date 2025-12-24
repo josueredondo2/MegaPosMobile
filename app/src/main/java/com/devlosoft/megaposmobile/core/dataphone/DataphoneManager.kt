@@ -7,6 +7,7 @@ import com.devlosoft.megaposmobile.MainActivity
 import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
+import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
@@ -129,6 +130,74 @@ class DataphoneManager @Inject constructor(
         )
 
         return service.testConnection()
+    }
+
+    /**
+     * Ejecuta el cierre de lote del datáfono.
+     * @param useSimulation Forzar modo simulación (para desarrollo)
+     * @return Resultado del cierre con totales
+     */
+    suspend fun closeDataphone(useSimulation: Boolean = false): Result<DataphoneCloseResult> {
+        // Usar simulación si está en modo desarrollo o se fuerza
+        if (useSimulation || BuildConfig.DEVELOPMENT_MODE) {
+            Log.d(TAG, "Using simulation mode for dataphone close")
+            return simulateClose()
+        }
+
+        val config = serverConfigDao.getActiveServerConfigSync()
+        if (config == null) {
+            Log.e(TAG, "No configuration found")
+            return Result.failure(Exception("Configuración del servidor no encontrada"))
+        }
+
+        if (config.datafonUrl.isBlank()) {
+            Log.w(TAG, "Dataphone URL not configured, falling back to simulation")
+            return simulateClose()
+        }
+
+        val provider = DatafonoProvider.fromString(config.datafonoProvider)
+        Log.d(TAG, "Closing dataphone: provider=$provider, url=${config.datafonUrl}")
+
+        val driver = driverFactory.createDriver(provider)
+
+        val service = HttpDataphoneService(
+            baseUrl = config.datafonUrl,
+            driver = driver,
+            httpClient = httpClient
+        )
+
+        val result = service.closeDataphone()
+
+        // Traer la app al frente después del cierre
+        bringAppToFront()
+
+        return result
+    }
+
+    /**
+     * Simula un cierre para desarrollo/pruebas.
+     */
+    private suspend fun simulateClose(): Result<DataphoneCloseResult> {
+        Log.d(TAG, "Simulating dataphone close")
+        delay(500)  // Simular tiempo de respuesta
+
+        return Result.success(
+            DataphoneCloseResult(
+                success = true,
+                terminal = "SIMULADOR",
+                batchNumber = String.format("%06d", (1..999999).random()),
+                salesCount = (1..10).random(),
+                salesTotal = (10000..500000).random().toDouble(),
+                reversalsCount = 0,
+                reversalsTotal = 0.0,
+                netTotal = (10000..500000).random().toDouble(),
+                ticket = "SIMULACION DE CIERRE\n" +
+                        "==================\n" +
+                        "CIERRE COMPLETADO\n" +
+                        "==================",
+                errorMessage = null
+            )
+        )
     }
 
     /**

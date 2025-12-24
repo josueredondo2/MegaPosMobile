@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.core.dataphone
 
+ import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
 
 /**
@@ -19,4 +20,10 @@ interface DataphoneService {
      * @return Mensaje de estado de la conexión
      */
     suspend fun testConnection(): Result<String>
+
+    /**
+     * Ejecuta el cierre de lote del datáfono.
+     * @return Resultado del cierre con totales
+     */
+    suspend fun closeDataphone(): Result<DataphoneCloseResult>
 }

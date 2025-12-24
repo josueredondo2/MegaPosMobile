@@ -1,11 +1,13 @@
 package com.devlosoft.megaposmobile.di
 
 import com.devlosoft.megaposmobile.BuildConfig
+import com.devlosoft.megaposmobile.core.util.NetworkUtils
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.AuthApi
 import com.devlosoft.megaposmobile.data.remote.api.CashierStationApi
 import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
+import com.devlosoft.megaposmobile.data.remote.api.PaymentApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.interceptor.AuthInterceptor
 import com.google.gson.Gson
@@ -47,9 +49,10 @@ object NetworkModule {
     @Singleton
     fun provideAuthInterceptor(
         sessionManager: SessionManager,
-        serverConfigDao: ServerConfigDao
+        serverConfigDao: ServerConfigDao,
+        networkUtils: NetworkUtils
     ): AuthInterceptor {
-        return AuthInterceptor(sessionManager, serverConfigDao)
+        return AuthInterceptor(sessionManager, serverConfigDao, networkUtils)
     }
 
     @Provides
@@ -99,5 +102,11 @@ object NetworkModule {
     @Singleton
     fun provideTransactionApi(retrofit: Retrofit): TransactionApi {
         return retrofit.create(TransactionApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun providePaymentApi(retrofit: Retrofit): PaymentApi {
+        return retrofit.create(PaymentApi::class.java)
     }
 }

@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.core.dataphone
 
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
+import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
 
 /**
@@ -27,4 +28,18 @@ interface DataphoneDriver {
      * @return Resultado del pago normalizado
      */
     fun parseResponse(jsonResponse: String): DataphonePaymentResult
+
+    /**
+     * Construye la URL de request para cierre de lote.
+     * @param baseUrl URL base del datáfono (ej: "http://192.168.18.54:8080")
+     * @return URL completa para llamar al endpoint de cierre
+     */
+    fun buildCloseUrl(baseUrl: String): String
+
+    /**
+     * Parsea la respuesta JSON del cierre a un resultado normalizado.
+     * @param jsonResponse JSON crudo devuelto por el datáfono
+     * @return Resultado del cierre normalizado
+     */
+    fun parseCloseResponse(jsonResponse: String): DataphoneCloseResult
 }
