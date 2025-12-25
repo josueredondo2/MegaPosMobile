@@ -58,7 +58,7 @@ class HttpDataphoneService(
                 val result = driver.parseResponse(jsonResponse)
 
                 if (result.success) {
-                    Log.d(TAG, "Payment successful: auth=${result.autorizacion}")
+                    Log.d(TAG, "Payment successful: auth=${result.authorizationCode}")
                     Result.success(result)
                 } else {
                     Log.e(TAG, "Payment rejected: ${result.errorMessage}")

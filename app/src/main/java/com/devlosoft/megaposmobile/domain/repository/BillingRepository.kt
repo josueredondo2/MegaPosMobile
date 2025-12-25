@@ -1,12 +1,14 @@
 package com.devlosoft.megaposmobile.domain.repository
 
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
+import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
-import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import kotlinx.coroutines.flow.Flow
 
 interface BillingRepository {
@@ -93,4 +95,15 @@ interface BillingRepository {
     suspend fun saveActiveTransactionId(transactionId: String)
     suspend fun getActiveTransactionId(): String?
     suspend fun clearActiveTransactionId()
+
+    // Packaging methods
+    suspend fun getPackagingReconciliation(
+        transactionId: String
+    ): Flow<Resource<List<PackagingItem>>>
+
+    suspend fun updatePackagings(
+        transactionId: String,
+        packagings: List<PackagingItemDto>,
+        affiliateType: String
+    ): Flow<Resource<Boolean>>
 }

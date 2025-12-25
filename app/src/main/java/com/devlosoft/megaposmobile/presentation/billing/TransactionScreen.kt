@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -68,6 +69,7 @@ import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ErrorDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
+import com.devlosoft.megaposmobile.presentation.billing.components.PackagingDialog
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 import java.text.NumberFormat
@@ -257,6 +259,23 @@ fun TransactionScreen(
         )
     }
 
+    // Packaging Dialog
+    if (state.showPackagingDialog) {
+        PackagingDialog(
+            packagingItems = state.packagingItems,
+            packagingInputs = state.packagingInputs,
+            isLoading = state.isLoadingPackagings,
+            isUpdating = state.isUpdatingPackagings,
+            error = state.loadPackagingsError ?: state.updatePackagingsError,
+            onQuantityChanged = { itemPosId, quantity ->
+                viewModel.onEvent(BillingEvent.PackagingQuantityChanged(itemPosId, quantity))
+            },
+            onSubmit = { viewModel.onEvent(BillingEvent.SubmitPackagings) },
+            onDismiss = { viewModel.onEvent(BillingEvent.DismissPackagingDialog) },
+            onDismissError = { viewModel.onEvent(BillingEvent.DismissPackagingsError) }
+        )
+    }
+
     // Handle navigation after successful pause
     LaunchedEffect(state.shouldNavigateAfterPause) {
         if (state.shouldNavigateAfterPause) {
@@ -342,6 +361,7 @@ fun TransactionScreen(
                     ) {
                         val hasActiveTransaction = state.transactionCode.isNotBlank()
                         val selectedItem = state.invoiceData.items.find { it.itemId == selectedItemId }
+                        val hasPackagingItems = state.invoiceData.items.any { it.hasPackaging && !it.isDeleted }
 
                         DropdownMenuItem(
                             text = { Text("Pausar Transacción") },
@@ -361,10 +381,10 @@ fun TransactionScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Agregar Envases") },
-                            enabled = hasActiveTransaction,
+                            enabled = hasActiveTransaction && hasPackagingItems,
                             onClick = {
                                 showTransactionMenu = false
-                                viewModel.onEvent(BillingEvent.ShowTodoDialog("Agregar Envases\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"))
+                                viewModel.onEvent(BillingEvent.OpenPackagingDialog)
                             }
                         )
                         DropdownMenuItem(
@@ -488,19 +508,49 @@ fun TransactionScreen(
                 color = Color.LightGray
             )
 
-            // Items list
+            // Calculate which items should be shown with strikethrough (deleted + orphaned packaging)
+            val visuallyDeletedLineSeqs = remember(state.invoiceData.items) {
+                val items = state.invoiceData.items
+                val result = mutableSetOf<Int>()
+
+                // 1. Items explicitly deleted
+                items.filter { it.isDeleted }.forEach { result.add(it.lineItemSequence) }
+
+                // 2. Orphaned packaging items (their nearest parent is deleted)
+                items.forEach { item ->
+                    // Check if this item is a packaging (some parent references it)
+                    val parentItems = items.filter { it.packagingItemId == item.itemId }
+                    if (parentItems.isNotEmpty()) {
+                        // This is a packaging item - find the nearest parent before this item
+                        val nearestParent = parentItems
+                            .filter { it.lineItemSequence < item.lineItemSequence }
+                            .maxByOrNull { it.lineItemSequence }
+
+                        if (nearestParent?.isDeleted == true) {
+                            result.add(item.lineItemSequence)
+                        }
+                    }
+                }
+
+                result
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = dimensions.horizontalPadding)
             ) {
-                items(state.invoiceData.items.filter { !it.isDeleted }) { item ->
+                items(state.invoiceData.items) { item ->
+                    val isVisuallyDeleted = visuallyDeletedLineSeqs.contains(item.lineItemSequence)
                     ItemRow(
                         item = item,
                         numberFormat = numberFormat,
-                        isSelected = selectedItemId == item.itemId,
+                        isSelected = selectedItemId == item.itemId && !isVisuallyDeleted,
+                        isVisuallyDeleted = isVisuallyDeleted,
                         onClick = {
-                            selectedItemId = if (selectedItemId == item.itemId) null else item.itemId
+                            if (!isVisuallyDeleted) {
+                                selectedItemId = if (selectedItemId == item.itemId) null else item.itemId
+                            }
                         }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -629,18 +679,27 @@ private fun ItemRow(
     item: InvoiceItem,
     numberFormat: NumberFormat,
     isSelected: Boolean = false,
+    isVisuallyDeleted: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val dimensions = LocalDimensions.current
     val hasIndicators = item.hasDiscount || item.isSponsor || item.isTaxExempt || item.hasPackaging
-    val backgroundColor = if (isSelected) Color(0xFFE3F2FD) else Color.Transparent
+
+    // Styling based on deleted state
+    val textColor = if (isVisuallyDeleted) Color.Gray else Color.Black
+    val textDecoration = if (isVisuallyDeleted) TextDecoration.LineThrough else TextDecoration.None
+    val backgroundColor = when {
+        isVisuallyDeleted -> Color(0xFFFAFAFA)  // Light gray for deleted items
+        isSelected -> Color(0xFFFFCDD2)  // Light red matching MegaSuper palette
+        else -> Color.Transparent
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
-            .clickable { onClick() }
+            .clickable(enabled = !isVisuallyDeleted) { onClick() }
             .padding(vertical = 4.dp, horizontal = 8.dp)
     ) {
         // Fila principal: nombre, cantidad, precio, total
@@ -652,33 +711,37 @@ private fun ItemRow(
             Text(
                 text = item.itemName,
                 fontSize = dimensions.fontSizeMedium,
-                color = Color.Black,
+                color = textColor,
+                textDecoration = textDecoration,
                 modifier = Modifier.weight(2f)
             )
             Text(
                 text = item.quantity.toInt().toString(),
                 fontSize = dimensions.fontSizeMedium,
-                color = Color.Black,
+                color = textColor,
+                textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center
             )
             Text(
                 text = numberFormat.format(item.unitPrice),
                 fontSize = dimensions.fontSizeMedium,
-                color = Color.Black,
+                color = textColor,
+                textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.End
             )
             Text(
                 text = numberFormat.format(item.total),
                 fontSize = dimensions.fontSizeMedium,
-                color = Color.Black,
+                color = textColor,
+                textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.End
             )
         }
 
-        if (hasIndicators) {
+        if (hasIndicators && !isVisuallyDeleted) {
             Row(
                 modifier = Modifier.padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically

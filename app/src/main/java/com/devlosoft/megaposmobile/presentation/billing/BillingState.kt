@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.presentation.billing
 
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 
@@ -84,7 +85,16 @@ data class BillingState(
     val printErrorMessage: String? = null,
     val pendingPrintText: String? = null,
     val pendingPrintTransactionCode: String? = null, // For retry print documents after finalize
-    val isPrinting: Boolean = false
+    val isPrinting: Boolean = false,
+
+    // Packaging dialog state
+    val showPackagingDialog: Boolean = false,
+    val packagingItems: List<PackagingItem> = emptyList(),
+    val packagingInputs: Map<String, String> = emptyMap(), // itemPosId -> input value
+    val isLoadingPackagings: Boolean = false,
+    val loadPackagingsError: String? = null,
+    val isUpdatingPackagings: Boolean = false,
+    val updatePackagingsError: String? = null
 )
 
 /**

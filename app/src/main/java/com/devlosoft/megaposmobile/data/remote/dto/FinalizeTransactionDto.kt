@@ -14,11 +14,11 @@ data class FinalizeTransactionRequestDto(
  * Mapea a DataphonePaymentInput en el backend.
  */
 data class DataphoneDataDto(
-    @SerializedName("autorizacion") val autorizacion: String?,
+    @SerializedName("authorizationCode") val authorizationCode: String?,
     @SerializedName("panmasked") val panmasked: String?,
     @SerializedName("cardholder") val cardholder: String?,
     @SerializedName("terminalid") val terminalid: String,
-    @SerializedName("recibo") val recibo: String?,
+    @SerializedName("receiptNumber") val receiptNumber: String?,
     @SerializedName("rrn") val rrn: String?,
     @SerializedName("stan") val stan: String?,
     @SerializedName("ticket") val ticket: String?,

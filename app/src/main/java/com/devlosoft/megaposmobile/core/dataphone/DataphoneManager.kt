@@ -90,12 +90,12 @@ class DataphoneManager @Inject constructor(
             DataphonePaymentResult(
                 success = true,
                 respcode = "00",
-                autorizacion = "SIM${(100000..999999).random()}",
+                authorizationCode = "SIM${(100000..999999).random()}",
                 panmasked = "****${(1000..9999).random()}",
                 cardholder = "CLIENTE SIMULADO",
                 issuername = "VISA",
                 terminalid = "SIMULADOR",
-                recibo = String.format("%06d", (1..999999).random()),
+                receiptNumber = String.format("%06d", (1..999999).random()),
                 rrn = "SIM${System.currentTimeMillis() % 1000000000}",
                 stan = String.format("%06d", (1..999999).random()),
                 ticket = "SIMULACION DE PAGO\n" +

@@ -71,4 +71,11 @@ sealed class BillingEvent {
     data object RetryPrint : BillingEvent()
     data object SkipPrint : BillingEvent()
     data object DismissPrintErrorDialog : BillingEvent()
+
+    // Packaging events
+    data object OpenPackagingDialog : BillingEvent()
+    data object DismissPackagingDialog : BillingEvent()
+    data class PackagingQuantityChanged(val itemPosId: String, val quantity: String) : BillingEvent()
+    data object SubmitPackagings : BillingEvent()
+    data object DismissPackagingsError : BillingEvent()
 }

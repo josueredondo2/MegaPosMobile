@@ -132,6 +132,8 @@ data class InvoiceItemDto(
         isDeleted = isDeleted ?: false,
         isSponsor = isSponsor ?: false,
         isTaxExempt = isTaxExempt ?: false,
-        hasPackaging = !packageItemId.isNullOrBlank()
+        hasPackaging = (packageItemQuantity ?: 0.0) > 0,
+        packagingItemId = packageItemId?.trim() ?: "",
+        allowsDelete = allowsDelete ?: true
     )
 }
