@@ -98,7 +98,7 @@ class ProcessViewModel @Inject constructor(
 
             paymentResult.fold(
                 onSuccess = { dataphoneResult ->
-                    Log.d(TAG, "Payment successful: auth=${dataphoneResult.autorizacion}")
+                    Log.d(TAG, "Payment successful: auth=${dataphoneResult.authorizationCode}")
 
                     // Update terminal ID if it's new or different
                     val newTerminalId = dataphoneResult.terminalid ?: ""
@@ -124,11 +124,11 @@ class ProcessViewModel @Inject constructor(
 
                     // Create DTO with dataphone data
                     val dataphoneData = DataphoneDataDto(
-                        autorizacion = dataphoneResult.autorizacion,
+                        authorizationCode = dataphoneResult.authorizationCode,
                         panmasked = dataphoneResult.panmasked,
                         cardholder = dataphoneResult.cardholder,
                         terminalid = dataphoneResult.terminalid ?: "",
-                        recibo = dataphoneResult.recibo,
+                        receiptNumber = dataphoneResult.receiptNumber,
                         rrn = dataphoneResult.rrn,
                         stan = dataphoneResult.stan,
                         ticket = dataphoneResult.ticket,

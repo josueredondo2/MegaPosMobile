@@ -8,8 +8,10 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
@@ -222,6 +224,39 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.DismissPrintErrorDialog -> {
                 _state.update { it.copy(showPrintErrorDialog = false, printErrorMessage = null) }
+            }
+            // Packaging events
+            is BillingEvent.OpenPackagingDialog -> {
+                openPackagingDialog()
+            }
+            is BillingEvent.DismissPackagingDialog -> {
+                _state.update {
+                    it.copy(
+                        showPackagingDialog = false,
+                        packagingItems = emptyList(),
+                        packagingInputs = emptyMap(),
+                        loadPackagingsError = null,
+                        updatePackagingsError = null
+                    )
+                }
+            }
+            is BillingEvent.PackagingQuantityChanged -> {
+                _state.update {
+                    it.copy(
+                        packagingInputs = it.packagingInputs + (event.itemPosId to event.quantity)
+                    )
+                }
+            }
+            is BillingEvent.SubmitPackagings -> {
+                submitPackagings()
+            }
+            is BillingEvent.DismissPackagingsError -> {
+                _state.update {
+                    it.copy(
+                        loadPackagingsError = null,
+                        updatePackagingsError = null
+                    )
+                }
             }
         }
     }
@@ -699,9 +734,29 @@ class BillingViewModel @Inject constructor(
     // Authorization methods
 
     private fun handleDeleteLineRequest(itemId: String, itemName: String) {
-        // Check if this is the only item in the invoice
-        val activeItems = _state.value.invoiceData.items.filter { !it.isDeleted }
-        if (activeItems.size <= 1) {
+        val allItems = _state.value.invoiceData.items
+        val itemToDelete = allItems.find { it.itemId == itemId }
+
+        // Build set of item IDs that are packaging items (referenced by parents)
+        val packagingItemIds = allItems
+            .filter { it.packagingItemId.isNotBlank() }
+            .map { it.packagingItemId }
+            .toSet()
+
+        // Validation 1: Don't allow deleting packaging items (children) directly
+        val isPackagingItem = packagingItemIds.contains(itemToDelete?.itemId)
+        if (isPackagingItem) {
+            _state.update {
+                it.copy(
+                    deleteLineError = "No se puede eliminar un envase. Elimine el artículo principal."
+                )
+            }
+            return
+        }
+
+        // Validation 2: Count "visible" items (excluding deleted AND orphaned packaging)
+        val visibleItems = getVisibleItems(allItems)
+        if (visibleItems.size <= 1) {
             _state.update {
                 it.copy(
                     deleteLineError = "No se puede eliminar la única línea de la factura"
@@ -1555,6 +1610,157 @@ class BillingViewModel @Inject constructor(
                     selectedCustomer = null
                 )
             }
+        }
+    }
+
+    // Packaging methods
+
+    private fun openPackagingDialog() {
+        val transactionId = _state.value.transactionCode
+        if (transactionId.isBlank()) {
+            Log.e(TAG, "No transaction code for packaging")
+            return
+        }
+
+        viewModelScope.launch {
+            billingRepository.getPackagingReconciliation(transactionId).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update {
+                            it.copy(
+                                showPackagingDialog = true,
+                                isLoadingPackagings = true,
+                                loadPackagingsError = null
+                            )
+                        }
+                    }
+                    is Resource.Success -> {
+                        val packagingItems = result.data ?: emptyList()
+                        // Initialize inputs with empty strings for each packaging item
+                        val initialInputs = packagingItems.associate { it.itemPosId to "" }
+                        _state.update {
+                            it.copy(
+                                isLoadingPackagings = false,
+                                packagingItems = packagingItems,
+                                packagingInputs = initialInputs
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isLoadingPackagings = false,
+                                loadPackagingsError = result.message
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun submitPackagings() {
+        val transactionId = _state.value.transactionCode
+        val packagingItems = _state.value.packagingItems
+        val packagingInputs = _state.value.packagingInputs
+        val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
+
+        if (transactionId.isBlank()) {
+            Log.e(TAG, "No transaction code for submit packagings")
+            return
+        }
+
+        // Build list of packagings to update (only those with quantity > 0)
+        val packagingsToUpdate = packagingItems.mapNotNull { item ->
+            val inputValue = packagingInputs[item.itemPosId]?.toDoubleOrNull() ?: 0.0
+            if (inputValue > 0) {
+                // Validate quantity doesn't exceed available
+                if (inputValue > item.quantityToCharge) {
+                    _state.update {
+                        it.copy(updatePackagingsError = "La cantidad para ${item.description} no puede exceder ${item.quantityToCharge.toInt()}")
+                    }
+                    return
+                }
+                PackagingItemDto(itemPosId = item.itemPosId, quantity = inputValue)
+            } else {
+                null
+            }
+        }
+
+        if (packagingsToUpdate.isEmpty()) {
+            _state.update {
+                it.copy(updatePackagingsError = "Debe ingresar al menos un envase")
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            billingRepository.updatePackagings(
+                transactionId = transactionId,
+                packagings = packagingsToUpdate,
+                affiliateType = affiliateType
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update {
+                            it.copy(
+                                isUpdatingPackagings = true,
+                                updatePackagingsError = null
+                            )
+                        }
+                    }
+                    is Resource.Success -> {
+                        Log.d(TAG, "Packagings updated successfully")
+                        _state.update {
+                            it.copy(
+                                isUpdatingPackagings = false,
+                                showPackagingDialog = false,
+                                packagingItems = emptyList(),
+                                packagingInputs = emptyMap()
+                            )
+                        }
+                        // Refresh transaction details
+                        loadTransactionDetails(transactionId)
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isUpdatingPackagings = false,
+                                updatePackagingsError = result.message
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Filters items that should be visible in the UI:
+     * - Excludes items marked as deleted
+     * - Excludes orphaned packaging items (packaging whose nearest parent is deleted)
+     */
+    private fun getVisibleItems(items: List<InvoiceItem>): List<InvoiceItem> {
+        // Calculate orphaned packaging line sequences
+        val orphanedLineSeqs = mutableSetOf<Int>()
+        items.forEach { item ->
+            // Check if this item is a packaging (some parent references it)
+            val parentItems = items.filter { it.packagingItemId == item.itemId }
+            if (parentItems.isNotEmpty()) {
+                // This is a packaging item - find the nearest parent before this item
+                val nearestParent = parentItems
+                    .filter { it.lineItemSequence < item.lineItemSequence }
+                    .maxByOrNull { it.lineItemSequence }
+
+                if (nearestParent?.isDeleted == true) {
+                    orphanedLineSeqs.add(item.lineItemSequence)
+                }
+            }
+        }
+
+        // Return items that are NOT deleted AND NOT orphaned packaging
+        return items.filter { item ->
+            !item.isDeleted && !orphanedLineSeqs.contains(item.lineItemSequence)
         }
     }
 }

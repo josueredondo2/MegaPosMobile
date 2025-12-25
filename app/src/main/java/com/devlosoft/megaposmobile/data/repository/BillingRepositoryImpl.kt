@@ -9,7 +9,9 @@ import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.AbortTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
 import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
@@ -17,6 +19,7 @@ import com.devlosoft.megaposmobile.data.local.entity.ActiveTransactionEntity
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
+import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
@@ -421,5 +424,65 @@ class BillingRepositoryImpl @Inject constructor(
 
     override suspend fun clearActiveTransactionId() {
         activeTransactionDao.clearActiveTransaction()
+    }
+
+    // Packaging methods
+    override suspend fun getPackagingReconciliation(
+        transactionId: String
+    ): Flow<Resource<List<PackagingItem>>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.getPackagingReconciliation(transactionId)
+            if (response.isSuccessful) {
+                val rawItems = response.body()
+                android.util.Log.d("PackagingDebug", "Raw response: $rawItems")
+                rawItems?.forEach { item ->
+                    android.util.Log.d("PackagingDebug", "Item: itemPosId=${item.itemPosId}, desc=${item.description}, pending=${item.quantityPending}, redeemed=${item.quantityRedeemed}")
+                }
+                val packagingItems = rawItems?.map { it.toDomain() } ?: emptyList()
+                emit(Resource.Success(packagingItems))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun updatePackagings(
+        transactionId: String,
+        packagings: List<PackagingItemDto>,
+        affiliateType: String
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = UpdatePackagingsRequestDto(
+                packagings = packagings,
+                affiliateType = affiliateType
+            )
+            val response = transactionApi.updatePackagings(transactionId, request)
+            if (response.isSuccessful) {
+                val success = response.body() ?: false
+                if (success) {
+                    emit(Resource.Success(true))
+                } else {
+                    emit(Resource.Error("Error al actualizar envases"))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
     }
 }

@@ -10,9 +10,11 @@ import com.devlosoft.megaposmobile.data.remote.dto.CanRecoverTransactionResponse
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.FinalizeTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.InvoiceDataDto
+import com.devlosoft.megaposmobile.data.remote.dto.PackagingReconciliationDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
 import retrofit2.Response
@@ -82,4 +84,15 @@ interface TransactionApi {
         @Path("transactionId") transactionId: String,
         @Body request: ChangeQuantityRequestDto
     ): Response<ChangeQuantityResponseDto>
+
+    @GET("material/{transactionId}/packaging-reconciliation")
+    suspend fun getPackagingReconciliation(
+        @Path("transactionId") transactionId: String
+    ): Response<List<PackagingReconciliationDto>>
+
+    @POST("material/{transactionId}/update-packagings")
+    suspend fun updatePackagings(
+        @Path("transactionId") transactionId: String,
+        @Body request: UpdatePackagingsRequestDto
+    ): Response<Boolean>
 }
