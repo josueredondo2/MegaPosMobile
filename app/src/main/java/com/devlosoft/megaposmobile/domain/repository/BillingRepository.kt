@@ -8,6 +8,7 @@ import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
+import com.devlosoft.megaposmobile.domain.model.TodayTransaction
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import kotlinx.coroutines.flow.Flow
 
@@ -106,4 +107,7 @@ interface BillingRepository {
         packagings: List<PackagingItemDto>,
         affiliateType: String
     ): Flow<Resource<Boolean>>
+
+    // Today's completed transactions
+    suspend fun getTodayCompletedTransactions(workstationId: String): Flow<Resource<List<TodayTransaction>>>
 }

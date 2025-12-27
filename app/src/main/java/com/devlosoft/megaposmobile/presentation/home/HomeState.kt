@@ -7,6 +7,7 @@ data class HomeState(
     val userName: String = "",
     val currentDate: String = "",
     val terminalName: String = "",
+    val businessUnitName: String = "",
     val stationStatus: String = "Cerrado",
     val isStationOpen: Boolean = false,
     val isLoading: Boolean = true,

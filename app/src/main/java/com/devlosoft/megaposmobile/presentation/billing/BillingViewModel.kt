@@ -1675,9 +1675,9 @@ class BillingViewModel @Inject constructor(
             val inputValue = packagingInputs[item.itemPosId]?.toDoubleOrNull() ?: 0.0
             if (inputValue > 0) {
                 // Validate quantity doesn't exceed available
-                if (inputValue > item.quantityToCharge) {
+                if (inputValue > item.quantityInvoiced) {
                     _state.update {
-                        it.copy(updatePackagingsError = "La cantidad para ${item.description} no puede exceder ${item.quantityToCharge.toInt()}")
+                        it.copy(updatePackagingsError = "La cantidad para ${item.description} no puede exceder ${item.quantityInvoiced.toInt()}")
                     }
                     return
                 }
