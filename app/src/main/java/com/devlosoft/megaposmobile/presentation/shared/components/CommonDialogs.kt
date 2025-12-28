@@ -212,7 +212,7 @@ fun SuccessDialog(
             Button(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50) // Green for success
+                    containerColor = MegaSuperRed
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {

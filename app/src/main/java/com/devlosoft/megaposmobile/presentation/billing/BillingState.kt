@@ -2,8 +2,10 @@ package com.devlosoft.megaposmobile.presentation.billing
 
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
-import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
+import com.devlosoft.megaposmobile.presentation.billing.state.PackagingDialogState
+import com.devlosoft.megaposmobile.presentation.billing.state.PrintState
+import com.devlosoft.megaposmobile.presentation.billing.state.TransactionControlState
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 
 data class BillingState(
@@ -45,25 +47,13 @@ data class BillingState(
 
     // Authorization dialog state
     val authorizationDialogState: AuthorizationDialogState = AuthorizationDialogState(),
-    val pendingAuthorizationAction: PendingAuthorizationAction? = null,
 
     // TODO dialog state (for unimplemented features)
     val showTodoDialog: Boolean = false,
     val todoDialogMessage: String = "",
 
-    // Pause transaction state
-    val showPauseConfirmDialog: Boolean = false,
-    val isPausingTransaction: Boolean = false,
-    val pauseTransactionError: String? = null,
-    val shouldNavigateAfterPause: Boolean = false,
-
-    // Abort transaction state
-    val showAbortConfirmDialog: Boolean = false,
-    val abortReason: String = "",
-    val abortAuthorizingOperator: String = "",
-    val isAbortingTransaction: Boolean = false,
-    val abortTransactionError: String? = null,
-    val shouldNavigateAfterAbort: Boolean = false,
+    // Transaction control state (pause/abort) - using sub-state
+    val transactionControl: TransactionControlState = TransactionControlState(),
 
     // Delete line state
     val isDeletingLine: Boolean = false,
@@ -76,42 +66,42 @@ data class BillingState(
     val changeQuantityLineNumber: Int = 0,
     val changeQuantityCurrentQty: Double = 0.0,
     val changeQuantityNewQty: String = "",
-    val changeQuantityAuthorizedBy: String? = null, // Stores who authorized (user or authorizer)
+    val changeQuantityAuthorizedBy: String? = null,
     val isChangingQuantity: Boolean = false,
     val changeQuantityError: String? = null,
 
-    // Print error state (for pause receipt and finalize documents)
-    val showPrintErrorDialog: Boolean = false,
-    val printErrorMessage: String? = null,
-    val pendingPrintText: String? = null,
-    val pendingPrintTransactionCode: String? = null, // For retry print documents after finalize
-    val isPrinting: Boolean = false,
+    // Print state - using sub-state
+    val printState: PrintState = PrintState(),
 
-    // Packaging dialog state
-    val showPackagingDialog: Boolean = false,
-    val packagingItems: List<PackagingItem> = emptyList(),
-    val packagingInputs: Map<String, String> = emptyMap(), // itemPosId -> input value
-    val isLoadingPackagings: Boolean = false,
-    val loadPackagingsError: String? = null,
-    val isUpdatingPackagings: Boolean = false,
-    val updatePackagingsError: String? = null
-)
+    // Packaging dialog state - using sub-state
+    val packagingState: PackagingDialogState = PackagingDialogState()
+) {
+    // Convenience accessors for backward compatibility with UI
+    // Transaction control
+    val showPauseConfirmDialog: Boolean get() = transactionControl.showPauseConfirmDialog
+    val isPausingTransaction: Boolean get() = transactionControl.isPausingTransaction
+    val pauseTransactionError: String? get() = transactionControl.pauseTransactionError
+    val shouldNavigateAfterPause: Boolean get() = transactionControl.shouldNavigateAfterPause
+    val showAbortConfirmDialog: Boolean get() = transactionControl.showAbortConfirmDialog
+    val abortReason: String get() = transactionControl.abortReason
+    val abortAuthorizingOperator: String get() = transactionControl.abortAuthorizingOperator
+    val isAbortingTransaction: Boolean get() = transactionControl.isAbortingTransaction
+    val abortTransactionError: String? get() = transactionControl.abortTransactionError
+    val shouldNavigateAfterAbort: Boolean get() = transactionControl.shouldNavigateAfterAbort
 
-/**
- * Represents an action that requires authorization
- */
-sealed class PendingAuthorizationAction {
-    data class DeleteLine(val itemId: String) : PendingAuthorizationAction()
-    data class ChangeQuantity(
-        val itemId: String,
-        val lineNumber: Int,
-        val newQuantity: Double
-    ) : PendingAuthorizationAction()
-    data object AbortTransaction : PendingAuthorizationAction()
-    data object PauseTransaction : PendingAuthorizationAction()
-    data class AuthorizeMaterial(
-        val itemPosId: String,
-        val quantity: Double,
-        val partyAffiliationTypeCode: String?
-    ) : PendingAuthorizationAction()
+    // Print state
+    val showPrintErrorDialog: Boolean get() = printState.showPrintErrorDialog
+    val printErrorMessage: String? get() = printState.printErrorMessage
+    val pendingPrintText: String? get() = printState.pendingPrintText
+    val pendingPrintTransactionCode: String? get() = printState.pendingPrintTransactionCode
+    val isPrinting: Boolean get() = printState.isPrinting
+
+    // Packaging state
+    val showPackagingDialog: Boolean get() = packagingState.isVisible
+    val packagingItems: List<com.devlosoft.megaposmobile.domain.model.PackagingItem> get() = packagingState.items
+    val packagingInputs: Map<String, String> get() = packagingState.inputs
+    val isLoadingPackagings: Boolean get() = packagingState.isLoading
+    val loadPackagingsError: String? get() = packagingState.loadError
+    val isUpdatingPackagings: Boolean get() = packagingState.isUpdating
+    val updatePackagingsError: String? get() = packagingState.updateError
 }

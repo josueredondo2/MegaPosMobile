@@ -65,7 +65,8 @@ class PrintDocumentsUseCase @Inject constructor(
                                 printedCount++
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error printing document: ${e.message}")
-                                lastError = e
+                                // Use PrinterFailureException to indicate documents were retrieved but printing failed
+                                lastError = PrinterFailureException(e.message ?: "Error de impresora")
                             }
                         }
                     }
@@ -125,3 +126,9 @@ class PrintDocumentsUseCase @Inject constructor(
  * Exception thrown when printing fails
  */
 class PrintException(message: String) : Exception(message)
+
+/**
+ * Exception thrown when the API returns documents successfully but the printer fails.
+ * This is used to distinguish between API errors and printer errors for retry logic.
+ */
+class PrinterFailureException(message: String) : Exception(message)

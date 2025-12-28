@@ -19,6 +19,7 @@ import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
 import com.devlosoft.megaposmobile.domain.usecase.OpenTerminalUseCase
 import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
+import com.devlosoft.megaposmobile.domain.usecase.PrinterFailureException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -190,20 +191,24 @@ class ProcessViewModel @Inject constructor(
                     it.copy(
                         status = ProcessStatus.Success("La transacción fue cerrada con éxito"),
                         isPrinting = false,
-                        pendingPrintTransactionCode = null
+                        pendingPrintTransactionCode = null,
+                        documentsRetrievedBeforeFail = false
                     )
                 }
             }
             .onFailure { error ->
                 Log.e(TAG, "Error printing documents: ${error.message}")
+                // Check if documents were retrieved before print failed
+                val docsRetrieved = error is PrinterFailureException
                 // Show print error with retry/skip options
                 _state.update {
                     it.copy(
                         status = ProcessStatus.PrintError(
                             error.message ?: "Error al imprimir los documentos"
                         ),
-                        isPrinting = false
+                        isPrinting = false,
                         // Keep pendingPrintTransactionCode for retry
+                        documentsRetrievedBeforeFail = docsRetrieved
                     )
                 }
             }
@@ -217,6 +222,10 @@ class ProcessViewModel @Inject constructor(
             return
         }
 
+        // Use isReprint based on whether documents were retrieved before the previous failure
+        val isReprint = _state.value.documentsRetrievedBeforeFail
+        Log.d(TAG, "Retry print with isReprint=$isReprint")
+
         viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -226,25 +235,28 @@ class ProcessViewModel @Inject constructor(
                 )
             }
 
-            printDocumentsUseCase(transactionCode)
+            printDocumentsUseCase(transactionCode, isReprint = isReprint)
                 .onSuccess { printedCount ->
                     Log.d(TAG, "Retry print successful: $printedCount documents")
                     _state.update {
                         it.copy(
                             status = ProcessStatus.Success("La transacción fue cerrada con éxito"),
                             isPrinting = false,
-                            pendingPrintTransactionCode = null
+                            pendingPrintTransactionCode = null,
+                            documentsRetrievedBeforeFail = false
                         )
                     }
                 }
                 .onFailure { error ->
                     Log.e(TAG, "Retry print failed: ${error.message}")
+                    val docsRetrieved = error is PrinterFailureException
                     _state.update {
                         it.copy(
                             status = ProcessStatus.PrintError(
                                 error.message ?: "Error al imprimir los documentos"
                             ),
-                            isPrinting = false
+                            isPrinting = false,
+                            documentsRetrievedBeforeFail = docsRetrieved
                         )
                     }
                 }
