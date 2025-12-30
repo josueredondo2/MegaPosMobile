@@ -128,6 +128,11 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.AddArticle -> {
                 addArticle()
             }
+            is BillingEvent.ScannerInput -> {
+                // Set barcode from scanner and add article automatically
+                _state.update { it.copy(articleSearchQuery = event.barcode) }
+                addArticle()
+            }
             is BillingEvent.DismissAddArticleError -> {
                 _state.update { it.copy(addArticleError = null) }
             }

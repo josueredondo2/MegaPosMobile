@@ -27,7 +27,8 @@ sealed class HeaderEndContent {
     data class UserMenu(
         val items: List<MenuItem>,
         val expanded: Boolean? = null,
-        val onExpandedChange: ((Boolean) -> Unit)? = null
+        val onExpandedChange: ((Boolean) -> Unit)? = null,
+        val enabled: Boolean = true
     ) : HeaderEndContent()
 
     /**
@@ -92,7 +93,8 @@ fun AppHeader(
                     UserMenuSection(
                         items = endContent.items,
                         expanded = endContent.expanded,
-                        onExpandedChange = endContent.onExpandedChange
+                        onExpandedChange = endContent.onExpandedChange,
+                        enabled = endContent.enabled
                     )
                 }
                 is HeaderEndContent.StaticUserIcon -> {
@@ -110,7 +112,8 @@ fun AppHeader(
 private fun UserMenuSection(
     items: List<MenuItem>,
     expanded: Boolean?,
-    onExpandedChange: ((Boolean) -> Unit)?
+    onExpandedChange: ((Boolean) -> Unit)?,
+    enabled: Boolean = true
 ) {
     val dimensions = LocalDimensions.current
 
@@ -125,11 +128,14 @@ private fun UserMenuSection(
     }
 
     Box {
-        IconButton(onClick = { setExpanded(!isExpanded) }) {
+        IconButton(
+            onClick = { setExpanded(!isExpanded) },
+            enabled = enabled
+        ) {
             Icon(
                 imageVector = Icons.Default.AccountCircle,
                 contentDescription = "Usuario",
-                tint = MegaSuperWhite,
+                tint = if (enabled) MegaSuperWhite else MegaSuperWhite.copy(alpha = 0.5f),
                 modifier = Modifier.size(dimensions.iconSizeLarge * 0.6f)
             )
         }

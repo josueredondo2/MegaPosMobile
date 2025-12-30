@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Liquor
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.MoneyOff
@@ -40,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import com.devlosoft.megaposmobile.core.scanner.BarcodeScannerHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -97,6 +102,17 @@ fun TransactionScreen(
 
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
+
+    // Barcode scanner handler for Zebra/PAX hardware scanners
+    val scannerHandler = remember { BarcodeScannerHandler() }
+
+    // Track if the article TextField has focus
+    var isArticleFieldFocused by remember { mutableStateOf(false) }
+
+    // Clean up scanner buffer when leaving screen
+    DisposableEffect(Unit) {
+        onDispose { scannerHandler.reset() }
+    }
 
     // TODO dialog (from state)
     if (state.showTodoDialog) {
@@ -293,7 +309,22 @@ fun TransactionScreen(
         }
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(
+        modifier = Modifier.onPreviewKeyEvent { keyEvent ->
+            // Block ALL key events while adding article - don't process, just consume
+            if (state.isAddingArticle) {
+                return@onPreviewKeyEvent true
+            }
+
+            // Process hardware scanner input (Zebra/PAX)
+            // Scanner has priority - uses timing to distinguish from manual input
+            val barcode = scannerHandler.processKeyEvent(keyEvent)
+            if (barcode != null) {
+                viewModel.onEvent(BillingEvent.ScannerInput(barcode))
+            }
+            scannerHandler.shouldConsumeEvent(keyEvent)
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -312,7 +343,8 @@ fun TransactionScreen(
                             text = "Cerrar sesión",
                             onClick = onLogout
                         )
-                    )
+                    ),
+                    enabled = !state.isAddingArticle
                 )
             )
 
@@ -430,9 +462,25 @@ fun TransactionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .padding(horizontal = dimensions.horizontalPadding),
+                    .padding(horizontal = dimensions.horizontalPadding)
+                    .onFocusChanged { focusState ->
+                        isArticleFieldFocused = focusState.isFocused
+                    },
                 placeholder = { Text("Articulo", fontSize = dimensions.fontSizeSmall) },
                 enabled = !state.isAddingArticle,
+                trailingIcon = {
+                    if (state.articleSearchQuery.isNotEmpty() && !state.isAddingArticle) {
+                        IconButton(
+                            onClick = { viewModel.onEvent(BillingEvent.ArticleSearchQueryChanged("")) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Limpiar",
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
