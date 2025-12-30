@@ -20,6 +20,9 @@ sealed class BillingEvent {
     data object AddArticle : BillingEvent()
     data object DismissAddArticleError : BillingEvent()
 
+    // Scanner events (Zebra/PAX hardware scanner)
+    data class ScannerInput(val barcode: String) : BillingEvent()
+
     // Finalize transaction events
     data object FinalizeTransaction : BillingEvent()
     data object DismissFinalizeTransactionError : BillingEvent()

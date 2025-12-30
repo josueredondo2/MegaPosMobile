@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Receipt
@@ -55,7 +56,8 @@ fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToProcess: (String) -> Unit = {},
     onNavigateToBilling: () -> Unit = {},
-    onNavigateToAdvancedOptions: () -> Unit = {}
+    onNavigateToAdvancedOptions: () -> Unit = {},
+    onNavigateToTodayTransactions: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
@@ -66,6 +68,7 @@ fun HomeScreen(
         viewModel.setNavigateToBillingCallback(onNavigateToBilling)
         viewModel.setNavigateToProcessCallback(onNavigateToProcess)
         viewModel.setNavigateToAdvancedOptionsCallback(onNavigateToAdvancedOptions)
+        viewModel.setNavigateToTodayTransactionsCallback(onNavigateToTodayTransactions)
     }
 
     // Todo Dialog
@@ -270,6 +273,14 @@ fun HomeScreen(
                         color = Color.DarkGray
                     )
 
+                    if (state.businessUnitName.isNotBlank()) {
+                        Text(
+                            text = "Sucursal: ${state.businessUnitName}",
+                            fontSize = dimensions.fontSizeMedium,
+                            color = Color.DarkGray
+                        )
+                    }
+
                     Text(
                         text = "Estado de Terminal: ${state.stationStatus}",
                         fontSize = dimensions.fontSizeMedium,
@@ -281,6 +292,8 @@ fun HomeScreen(
 
                     // Menu Cards - shown based on user permissions (show property)
                     // onClick uses Request* events to validate access before executing
+
+                    // 1. Aperturar Terminal
                     if (state.canOpenTerminal) {
                         MenuCard(
                             icon = Icons.Default.PhoneAndroid,
@@ -291,26 +304,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
 
-                    if (state.canCloseTerminal) {
-                        MenuCard(
-                            icon = Icons.Default.Lock,
-                            title = "Cierre Terminal",
-                            description = "Realiza el cierre para el dia incluyendo cierre del datafono",
-                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseTerminal) }
-                        )
-                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-                    }
-
-                    if (state.canCloseDatafono) {
-                        MenuCard(
-                            icon = Icons.Default.Receipt,
-                            title = "Cierre de datafono",
-                            description = "Cerrar el lote de ventas del datafono.",
-                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseDatafono) }
-                        )
-                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-                    }
-
+                    // 2. Facturación
                     if (state.canBilling) {
                         MenuCard(
                             icon = Icons.Default.AttachMoney,
@@ -322,6 +316,19 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
 
+                    // 3. Cierre de datafono
+                    if (state.canCloseDatafono) {
+                        MenuCard(
+                            icon = Icons.Default.CreditCard,
+                            title = "Cierre de datafono",
+                            description = "Cerrar el lote de ventas del datafono.",
+                            enabled = state.isStationOpen,
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseDatafono) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
+
+                    // 4. Transacciones del dia
                     if (state.canViewTransactions) {
                         MenuCard(
                             icon = Icons.Default.Receipt,
@@ -332,6 +339,19 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
 
+                    // 5. Cierre Terminal
+                    if (state.canCloseTerminal) {
+                        MenuCard(
+                            icon = Icons.Default.Lock,
+                            title = "Cierre Terminal",
+                            description = "Realiza el cierre para el dia.",
+                            enabled = state.isStationOpen,
+                            onClick = { viewModel.onEvent(HomeEvent.RequestCloseTerminal) }
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+                    }
+
+                    // 6. Opciones Avanzadas
                     if (state.canAdvancedOptions) {
                         MenuCard(
                             icon = Icons.Default.Settings,

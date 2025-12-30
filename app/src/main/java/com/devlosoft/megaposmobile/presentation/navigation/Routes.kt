@@ -23,6 +23,9 @@ data object AdvancedOptions
 @Serializable
 data object TransactionDetail
 
+@Serializable
+data object TodayTransactions
+
 // Routes with arguments
 @Serializable
 data class Billing(val skipRecoveryCheck: Boolean = false)

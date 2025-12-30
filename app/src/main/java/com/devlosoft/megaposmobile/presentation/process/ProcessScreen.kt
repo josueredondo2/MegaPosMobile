@@ -54,6 +54,7 @@ fun ProcessScreen(
     onBack: () -> Unit,
     onRetry: (() -> Unit)? = null,
     onSuccess: (() -> Unit)? = null,
+    onSkipPrintSuccess: (() -> Unit)? = null,
     autoStartProcess: Boolean = true,
     successButtonText: String = "Volver a menu",
     errorBackButtonText: String = "Volver a menu"
@@ -125,7 +126,12 @@ fun ProcessScreen(
                                 message = status.message,
                                 onRetryPrintClick = { viewModel.retryPrint() },
                                 onSkipPrintClick = {
-                                    viewModel.skipPrint()
+                                    // Navigate directly to new transaction if callback provided
+                                    if (onSkipPrintSuccess != null) {
+                                        onSkipPrintSuccess()
+                                    } else {
+                                        viewModel.skipPrint()
+                                    }
                                 }
                             )
                         }

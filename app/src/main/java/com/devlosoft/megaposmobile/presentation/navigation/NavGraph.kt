@@ -19,6 +19,7 @@ import com.devlosoft.megaposmobile.presentation.home.HomeScreen
 import com.devlosoft.megaposmobile.presentation.login.LoginScreen
 import com.devlosoft.megaposmobile.presentation.process.ProcessScreen
 import com.devlosoft.megaposmobile.presentation.process.ProcessViewModel
+import com.devlosoft.megaposmobile.presentation.todaytransactions.TodayTransactionsScreen
 import kotlin.reflect.typeOf
 
 @Composable
@@ -78,6 +79,17 @@ fun NavGraph(
                 },
                 onNavigateToAdvancedOptions = {
                     navController.navigate(AdvancedOptions)
+                },
+                onNavigateToTodayTransactions = {
+                    navController.navigate(TodayTransactions)
+                }
+            )
+        }
+
+        composable<TodayTransactions> {
+            TodayTransactionsScreen(
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -173,6 +185,12 @@ fun NavGraph(
                 },
                 onSuccess = {
                     // Navigate to Billing for new transaction, skipping recovery check
+                    navController.navigate(Billing(skipRecoveryCheck = true)) {
+                        popUpTo<Home> { inclusive = false }
+                    }
+                },
+                onSkipPrintSuccess = {
+                    // Navigate directly to new transaction when skipping print
                     navController.navigate(Billing(skipRecoveryCheck = true)) {
                         popUpTo<Home> { inclusive = false }
                     }

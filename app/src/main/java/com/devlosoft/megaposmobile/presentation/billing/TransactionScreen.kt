@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Liquor
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.MoneyOff
@@ -40,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import com.devlosoft.megaposmobile.core.scanner.BarcodeScannerHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -57,6 +62,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -96,6 +102,17 @@ fun TransactionScreen(
 
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
+
+    // Barcode scanner handler for Zebra/PAX hardware scanners
+    val scannerHandler = remember { BarcodeScannerHandler() }
+
+    // Track if the article TextField has focus
+    var isArticleFieldFocused by remember { mutableStateOf(false) }
+
+    // Clean up scanner buffer when leaving screen
+    DisposableEffect(Unit) {
+        onDispose { scannerHandler.reset() }
+    }
 
     // TODO dialog (from state)
     if (state.showTodoDialog) {
@@ -292,7 +309,22 @@ fun TransactionScreen(
         }
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(
+        modifier = Modifier.onPreviewKeyEvent { keyEvent ->
+            // Block ALL key events while adding article - don't process, just consume
+            if (state.isAddingArticle) {
+                return@onPreviewKeyEvent true
+            }
+
+            // Process hardware scanner input (Zebra/PAX)
+            // Scanner has priority - uses timing to distinguish from manual input
+            val barcode = scannerHandler.processKeyEvent(keyEvent)
+            if (barcode != null) {
+                viewModel.onEvent(BillingEvent.ScannerInput(barcode))
+            }
+            scannerHandler.shouldConsumeEvent(keyEvent)
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -311,7 +343,8 @@ fun TransactionScreen(
                             text = "Cerrar sesión",
                             onClick = onLogout
                         )
-                    )
+                    ),
+                    enabled = !state.isAddingArticle
                 )
             )
 
@@ -330,14 +363,16 @@ fun TransactionScreen(
                 ) {
                     Text(
                         text = "Tiquete: ${state.transactionCode.ifBlank { "---" }}",
-                        fontSize = dimensions.fontSizeLarge,
+                        fontSize = dimensions.fontSizeSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Cliente: ${state.selectedCustomer?.name ?: "---"}",
-                        fontSize = dimensions.fontSizeMedium,
+                        fontSize = dimensions.fontSizeSmall,
                         color = Color.Black
                     )
                 }
@@ -418,7 +453,7 @@ fun TransactionScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+            Spacer(modifier = Modifier.height(dimensions.spacerSmall))
 
             // Article search field
             OutlinedTextField(
@@ -426,9 +461,26 @@ fun TransactionScreen(
                 onValueChange = { viewModel.onEvent(BillingEvent.ArticleSearchQueryChanged(it)) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = dimensions.horizontalPadding),
-                placeholder = { Text("Articulo") },
+                    .height(48.dp)
+                    .padding(horizontal = dimensions.horizontalPadding)
+                    .onFocusChanged { focusState ->
+                        isArticleFieldFocused = focusState.isFocused
+                    },
+                placeholder = { Text("Articulo", fontSize = dimensions.fontSizeSmall) },
                 enabled = !state.isAddingArticle,
+                trailingIcon = {
+                    if (state.articleSearchQuery.isNotEmpty() && !state.isAddingArticle) {
+                        IconButton(
+                            onClick = { viewModel.onEvent(BillingEvent.ArticleSearchQueryChanged("")) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Limpiar",
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
@@ -440,6 +492,7 @@ fun TransactionScreen(
                     }
                 ),
                 singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = dimensions.fontSizeSmall),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MegaSuperRed,
                     cursorColor = MegaSuperRed
@@ -450,18 +503,18 @@ fun TransactionScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                         color = MegaSuperRed,
                         strokeWidth = 2.dp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+            Spacer(modifier = Modifier.height(dimensions.spacerSmall))
 
             // Items table header
             Row(
@@ -472,14 +525,14 @@ fun TransactionScreen(
             ) {
                 Text(
                     text = "Item",
-                    fontSize = dimensions.fontSizeMedium,
+                    fontSize = dimensions.fontSizeSmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray,
                     modifier = Modifier.weight(2f)
                 )
                 Text(
                     text = "Cant.",
-                    fontSize = dimensions.fontSizeMedium,
+                    fontSize = dimensions.fontSizeSmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray,
                     modifier = Modifier.weight(1f),
@@ -487,7 +540,7 @@ fun TransactionScreen(
                 )
                 Text(
                     text = "Unit.",
-                    fontSize = dimensions.fontSizeMedium,
+                    fontSize = dimensions.fontSizeSmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray,
                     modifier = Modifier.weight(1f),
@@ -495,7 +548,7 @@ fun TransactionScreen(
                 )
                 Text(
                     text = "Total",
-                    fontSize = dimensions.fontSizeMedium,
+                    fontSize = dimensions.fontSizeSmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray,
                     modifier = Modifier.weight(1f),
@@ -504,7 +557,7 @@ fun TransactionScreen(
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(horizontal = dimensions.horizontalPadding, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = dimensions.horizontalPadding, vertical = 4.dp),
                 color = Color.LightGray
             )
 
@@ -553,7 +606,7 @@ fun TransactionScreen(
                             }
                         }
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
             }
 
@@ -621,23 +674,23 @@ fun TransactionScreen(
                     .fillMaxWidth()
                     .background(Color(0xFFF5F5F5))
                     .padding(horizontal = dimensions.horizontalPadding)
-                    .padding(vertical = dimensions.spacerMedium)
+                    .padding(vertical = dimensions.spacerSmall)
             ) {
                 TotalRow(
                     label = "Subtotal",
                     value = numberFormat.format(state.invoiceData.totals.subTotal)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 TotalRow(
                     label = "Impuestos",
                     value = numberFormat.format(state.invoiceData.totals.tax)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 TotalRow(
                     label = "Total Ahorrado",
                     value = numberFormat.format(state.invoiceData.totals.totalSavings)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 TotalRow(
                     label = "Total",
                     value = numberFormat.format(state.invoiceData.totals.total),
@@ -700,7 +753,7 @@ private fun ItemRow(
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .clickable(enabled = !isVisuallyDeleted) { onClick() }
-            .padding(vertical = 4.dp, horizontal = 8.dp)
+            .padding(vertical = 2.dp, horizontal = 8.dp)
     ) {
         // Fila principal: nombre, cantidad, precio, total
         Row(
@@ -710,14 +763,14 @@ private fun ItemRow(
         ) {
             Text(
                 text = item.itemName,
-                fontSize = dimensions.fontSizeMedium,
+                fontSize = dimensions.fontSizeSmall,
                 color = textColor,
                 textDecoration = textDecoration,
                 modifier = Modifier.weight(2f)
             )
             Text(
                 text = item.quantity.toInt().toString(),
-                fontSize = dimensions.fontSizeMedium,
+                fontSize = dimensions.fontSizeSmall,
                 color = textColor,
                 textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
@@ -725,7 +778,7 @@ private fun ItemRow(
             )
             Text(
                 text = numberFormat.format(item.unitPrice),
-                fontSize = dimensions.fontSizeMedium,
+                fontSize = dimensions.fontSizeSmall,
                 color = textColor,
                 textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
@@ -733,7 +786,7 @@ private fun ItemRow(
             )
             Text(
                 text = numberFormat.format(item.total),
-                fontSize = dimensions.fontSizeMedium,
+                fontSize = dimensions.fontSizeSmall,
                 color = textColor,
                 textDecoration = textDecoration,
                 modifier = Modifier.weight(1f),
@@ -808,13 +861,13 @@ private fun TotalRow(
     ) {
         Text(
             text = label,
-            fontSize = dimensions.fontSizeMedium,
+            fontSize = dimensions.fontSizeSmall,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
             color = Color.Black
         )
         Text(
             text = value,
-            fontSize = if (isBold) dimensions.fontSizeLarge else dimensions.fontSizeMedium,
+            fontSize = if (isBold) dimensions.fontSizeMedium else dimensions.fontSizeSmall,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
             color = Color.Black
         )

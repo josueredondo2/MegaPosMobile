@@ -21,6 +21,7 @@ import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.PackagingItem
 import com.devlosoft.megaposmobile.domain.model.PrintDocument
+import com.devlosoft.megaposmobile.domain.model.TodayTransaction
 import com.devlosoft.megaposmobile.domain.model.TransactionRecoveryResult
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import kotlinx.coroutines.flow.Flow
@@ -473,6 +474,27 @@ class BillingRepositoryImpl @Inject constructor(
                 } else {
                     emit(Resource.Error("Error al actualizar envases"))
                 }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    // Today's completed transactions
+    override suspend fun getTodayCompletedTransactions(workstationId: String): Flow<Resource<List<TodayTransaction>>> = flow {
+        emit(Resource.Loading())
+        try {
+            val response = transactionApi.getTodayCompletedTransactions(workstationId)
+            if (response.isSuccessful) {
+                val transactions = response.body()?.map { it.toDomain() } ?: emptyList()
+                emit(Resource.Success(transactions))
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

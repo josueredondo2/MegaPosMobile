@@ -80,6 +80,9 @@ class HomeViewModel @Inject constructor(
             // Get user name from session
             val userName = sessionManager.getUserName().first() ?: "Usuario"
 
+            // Get business unit name (sucursal) from session
+            val businessUnitName = sessionManager.getBusinessUnitName().first() ?: ""
+
             // Get terminal name (hostname) from server config
             val serverConfig = serverConfigDao.getActiveServerConfigSync()
             val terminalName = serverConfig?.serverName ?: "Terminal"
@@ -95,6 +98,7 @@ class HomeViewModel @Inject constructor(
                         userName = userName,
                         currentDate = currentDate,
                         terminalName = terminalName,
+                        businessUnitName = businessUnitName,
                         stationStatus = stationStatus.getDisplayText(),
                         isStationOpen = status == StationState.OPEN,
                         isLoading = false
@@ -108,6 +112,7 @@ class HomeViewModel @Inject constructor(
     private var onNavigateToBillingCallback: (() -> Unit)? = null
     private var onNavigateToProcessCallback: ((String) -> Unit)? = null
     private var onNavigateToAdvancedOptionsCallback: (() -> Unit)? = null
+    private var onNavigateToTodayTransactionsCallback: (() -> Unit)? = null
 
     fun setLogoutCallback(callback: () -> Unit) {
         onLogoutCallback = callback
@@ -123,6 +128,10 @@ class HomeViewModel @Inject constructor(
 
     fun setNavigateToAdvancedOptionsCallback(callback: () -> Unit) {
         onNavigateToAdvancedOptionsCallback = callback
+    }
+
+    fun setNavigateToTodayTransactionsCallback(callback: () -> Unit) {
+        onNavigateToTodayTransactionsCallback = callback
     }
 
     fun onEvent(event: HomeEvent) {
@@ -469,7 +478,7 @@ class HomeViewModel @Inject constructor(
     private fun handleRequestViewTransactions() {
         val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_REIMPRESION) ?: false
         if (hasAccess) {
-            showTodoDialog("Transacciones del día")
+            onNavigateToTodayTransactionsCallback?.invoke()
         } else {
             _state.update {
                 it.copy(
@@ -556,7 +565,7 @@ class HomeViewModel @Inject constructor(
             is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
             is HomePendingAction.CloseDatafono -> onNavigateToProcessCallback?.invoke("closeDataphone")
             is HomePendingAction.Billing -> checkPrinterConnection()
-            is HomePendingAction.ViewTransactions -> showTodoDialog("Transacciones del día")
+            is HomePendingAction.ViewTransactions -> onNavigateToTodayTransactionsCallback?.invoke()
             is HomePendingAction.AdvancedOptions -> onNavigateToAdvancedOptionsCallback?.invoke()
         }
     }

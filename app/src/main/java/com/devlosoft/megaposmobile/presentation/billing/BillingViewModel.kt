@@ -17,6 +17,21 @@ import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
 import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
+import com.devlosoft.megaposmobile.domain.usecase.PrinterFailureException
+import com.devlosoft.megaposmobile.domain.usecase.billing.AbortTransactionUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.AuthorizedActionHandler
+import com.devlosoft.megaposmobile.domain.usecase.billing.ChangeQuantityUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.GetPackagingReconciliationUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.PauseTransactionUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.PrintPauseReceiptUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.UpdatePackagingsUseCase
+import com.devlosoft.megaposmobile.domain.usecase.billing.VoidItemUseCase
+import com.devlosoft.megaposmobile.core.extensions.getVisibleItems
+import com.devlosoft.megaposmobile.core.extensions.isPackagingItem
+import com.devlosoft.megaposmobile.core.extensions.getTotalItemCount
+import com.devlosoft.megaposmobile.presentation.billing.state.PackagingDialogState
+import com.devlosoft.megaposmobile.presentation.billing.state.PrintState
+import com.devlosoft.megaposmobile.presentation.billing.state.TransactionControlState
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialogState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +50,14 @@ class BillingViewModel @Inject constructor(
     private val printDocumentsUseCase: PrintDocumentsUseCase,
     private val getSessionInfoUseCase: GetSessionInfoUseCase,
     private val printerManager: PrinterManager,
+    private val authorizedActionHandler: AuthorizedActionHandler,
+    private val pauseTransactionUseCase: PauseTransactionUseCase,
+    private val abortTransactionUseCase: AbortTransactionUseCase,
+    private val getPackagingReconciliationUseCase: GetPackagingReconciliationUseCase,
+    private val updatePackagingsUseCase: UpdatePackagingsUseCase,
+    private val printPauseReceiptUseCase: PrintPauseReceiptUseCase,
+    private val voidItemUseCase: VoidItemUseCase,
+    private val changeQuantityUseCase: ChangeQuantityUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -44,6 +67,10 @@ class BillingViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(BillingState())
     val state: StateFlow<BillingState> = _state.asStateFlow()
+
+    // Callback for pending authorized action - replaces PendingAuthorizationAction pattern
+    private var pendingAuthorizedAction: (suspend (authorizedBy: String) -> Unit)? = null
+    private var currentProcessCode: String = ""
 
     // Check if we should skip recovery check (coming from completed transaction)
     private val skipRecoveryCheck: Boolean = savedStateHandle.get<Boolean>("skipRecoveryCheck") ?: false
@@ -101,6 +128,11 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.AddArticle -> {
                 addArticle()
             }
+            is BillingEvent.ScannerInput -> {
+                // Set barcode from scanner and add article automatically
+                _state.update { it.copy(articleSearchQuery = event.barcode) }
+                addArticle()
+            }
             is BillingEvent.DismissAddArticleError -> {
                 _state.update { it.copy(addArticleError = null) }
             }
@@ -140,11 +172,10 @@ class BillingViewModel @Inject constructor(
                 submitAuthorization(event.userCode, event.password)
             }
             is BillingEvent.DismissAuthorizationDialog -> {
+                pendingAuthorizedAction = null
+                currentProcessCode = ""
                 _state.update {
-                    it.copy(
-                        authorizationDialogState = AuthorizationDialogState(),
-                        pendingAuthorizationAction = null
-                    )
+                    it.copy(authorizationDialogState = AuthorizationDialogState())
                 }
             }
             is BillingEvent.ClearAuthorizationError -> {
@@ -162,32 +193,50 @@ class BillingViewModel @Inject constructor(
             }
             // Pause transaction events
             is BillingEvent.DismissPauseConfirmDialog -> {
-                _state.update { it.copy(showPauseConfirmDialog = false) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(showPauseConfirmDialog = false))
+                }
             }
             is BillingEvent.ConfirmPauseTransaction -> {
                 confirmPauseTransaction()
             }
             is BillingEvent.DismissPauseTransactionError -> {
-                _state.update { it.copy(pauseTransactionError = null) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(pauseTransactionError = null))
+                }
             }
             is BillingEvent.PauseNavigationHandled -> {
-                _state.update { it.copy(shouldNavigateAfterPause = false) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(shouldNavigateAfterPause = false))
+                }
             }
             // Abort transaction events
             is BillingEvent.DismissAbortConfirmDialog -> {
-                _state.update { it.copy(showAbortConfirmDialog = false, abortReason = "", abortAuthorizingOperator = "") }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(
+                        showAbortConfirmDialog = false,
+                        abortReason = "",
+                        abortAuthorizingOperator = ""
+                    ))
+                }
             }
             is BillingEvent.AbortReasonChanged -> {
-                _state.update { it.copy(abortReason = event.reason) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(abortReason = event.reason))
+                }
             }
             is BillingEvent.ConfirmAbortTransaction -> {
                 confirmAbortTransaction()
             }
             is BillingEvent.DismissAbortTransactionError -> {
-                _state.update { it.copy(abortTransactionError = null) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(abortTransactionError = null))
+                }
             }
             is BillingEvent.AbortNavigationHandled -> {
-                _state.update { it.copy(shouldNavigateAfterAbort = false) }
+                _state.update {
+                    it.copy(transactionControl = it.transactionControl.copy(shouldNavigateAfterAbort = false))
+                }
             }
             // Delete line events
             is BillingEvent.DismissDeleteLineError -> {
@@ -223,7 +272,14 @@ class BillingViewModel @Inject constructor(
                 skipPrint()
             }
             is BillingEvent.DismissPrintErrorDialog -> {
-                _state.update { it.copy(showPrintErrorDialog = false, printErrorMessage = null) }
+                _state.update {
+                    it.copy(
+                        printState = it.printState.copy(
+                            showPrintErrorDialog = false,
+                            printErrorMessage = null
+                        )
+                    )
+                }
             }
             // Packaging events
             is BillingEvent.OpenPackagingDialog -> {
@@ -231,19 +287,15 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.DismissPackagingDialog -> {
                 _state.update {
-                    it.copy(
-                        showPackagingDialog = false,
-                        packagingItems = emptyList(),
-                        packagingInputs = emptyMap(),
-                        loadPackagingsError = null,
-                        updatePackagingsError = null
-                    )
+                    it.copy(packagingState = PackagingDialogState())
                 }
             }
             is BillingEvent.PackagingQuantityChanged -> {
                 _state.update {
                     it.copy(
-                        packagingInputs = it.packagingInputs + (event.itemPosId to event.quantity)
+                        packagingState = it.packagingState.copy(
+                            inputs = it.packagingState.inputs + (event.itemPosId to event.quantity)
+                        )
                     )
                 }
             }
@@ -253,8 +305,10 @@ class BillingViewModel @Inject constructor(
             is BillingEvent.DismissPackagingsError -> {
                 _state.update {
                     it.copy(
-                        loadPackagingsError = null,
-                        updatePackagingsError = null
+                        packagingState = it.packagingState.copy(
+                            loadError = null,
+                            updateError = null
+                        )
                     )
                 }
             }
@@ -602,6 +656,17 @@ class BillingViewModel @Inject constructor(
         quantity: Double,
         partyAffiliationTypeCode: String?
     ) {
+        // Set callback for material authorization
+        pendingAuthorizedAction = { authorizedBy ->
+            executeAddMaterialWithAuthorization(
+                itemPosId = itemPosId,
+                quantity = quantity,
+                partyAffiliationTypeCode = partyAffiliationTypeCode,
+                authorizedBy = authorizedBy
+            )
+        }
+        currentProcessCode = UserPermissions.PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO
+
         _state.update {
             it.copy(
                 isAddingArticle = false,
@@ -612,11 +677,6 @@ class BillingViewModel @Inject constructor(
                     message = "Este artículo requiere autorización para ser vendido",
                     actionButtonText = "Autorizar",
                     processCode = UserPermissions.PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO
-                ),
-                pendingAuthorizationAction = PendingAuthorizationAction.AuthorizeMaterial(
-                    itemPosId = itemPosId,
-                    quantity = quantity,
-                    partyAffiliationTypeCode = partyAffiliationTypeCode
                 )
             )
         }
@@ -700,8 +760,10 @@ class BillingViewModel @Inject constructor(
         _state.update {
             it.copy(
                 isFinalizingTransaction = false,
-                isPrinting = true,
-                pendingPrintTransactionCode = transactionCode
+                printState = it.printState.copy(
+                    isPrinting = true,
+                    pendingPrintTransactionCode = transactionCode
+                )
             )
         }
 
@@ -710,8 +772,7 @@ class BillingViewModel @Inject constructor(
                 Log.d(TAG, "Successfully printed $printedCount documents")
                 _state.update {
                     it.copy(
-                        isPrinting = false,
-                        pendingPrintTransactionCode = null,
+                        printState = PrintState(),
                         isTransactionFinalized = true,
                         shouldNavigateBackToBilling = true
                     )
@@ -719,13 +780,19 @@ class BillingViewModel @Inject constructor(
             }
             .onFailure { error ->
                 Log.e(TAG, "Error printing documents: ${error.message}")
+                // Check if documents were retrieved before print failed
+                val docsRetrieved = error is PrinterFailureException
                 // Show print error dialog with retry/skip options
                 _state.update {
                     it.copy(
-                        isPrinting = false,
-                        isTransactionFinalized = true, // Transaction is finalized, only print failed
-                        showPrintErrorDialog = true,
-                        printErrorMessage = error.message ?: "Error al imprimir los documentos"
+                        printState = it.printState.copy(
+                            isPrinting = false,
+                            showPrintErrorDialog = true,
+                            printErrorMessage = error.message ?: "Error al imprimir los documentos",
+                            pendingPrintTransactionCode = transactionCode,
+                            documentsRetrievedBeforeFail = docsRetrieved
+                        ),
+                        isTransactionFinalized = true // Transaction is finalized, only print failed
                     )
                 }
             }
@@ -735,17 +802,9 @@ class BillingViewModel @Inject constructor(
 
     private fun handleDeleteLineRequest(itemId: String, itemName: String) {
         val allItems = _state.value.invoiceData.items
-        val itemToDelete = allItems.find { it.itemId == itemId }
-
-        // Build set of item IDs that are packaging items (referenced by parents)
-        val packagingItemIds = allItems
-            .filter { it.packagingItemId.isNotBlank() }
-            .map { it.packagingItemId }
-            .toSet()
 
         // Validation 1: Don't allow deleting packaging items (children) directly
-        val isPackagingItem = packagingItemIds.contains(itemToDelete?.itemId)
-        if (isPackagingItem) {
+        if (allItems.isPackagingItem(itemId)) {
             _state.update {
                 it.copy(
                     deleteLineError = "No se puede eliminar un envase. Elimine el artículo principal."
@@ -755,8 +814,7 @@ class BillingViewModel @Inject constructor(
         }
 
         // Validation 2: Count "visible" items (excluding deleted AND orphaned packaging)
-        val visibleItems = getVisibleItems(allItems)
-        if (visibleItems.size <= 1) {
+        if (allItems.getVisibleItems().size <= 1) {
             _state.update {
                 it.copy(
                     deleteLineError = "No se puede eliminar la única línea de la factura"
@@ -765,33 +823,34 @@ class BillingViewModel @Inject constructor(
             return
         }
 
-        val permissions = _state.value.userPermissions
-        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ELIMINAR_LINEA) ?: false
-
-        if (hasAccess) {
-            // User has access, execute action directly
-            executeDeleteLine(itemId)
-        } else {
-            // User doesn't have access, show authorization dialog
-            _state.update {
-                it.copy(
-                    authorizationDialogState = AuthorizationDialogState(
-                        isVisible = true,
-                        title = "Eliminar Línea",
-                        message = "Para eliminar el articulo $itemName debe solicitar autorización",
-                        actionButtonText = "Eliminar Línea",
-                        processCode = UserPermissions.PROCESS_ELIMINAR_LINEA
-                    ),
-                    pendingAuthorizationAction = PendingAuthorizationAction.DeleteLine(itemId)
-                )
+        viewModelScope.launch {
+            when (val result = authorizedActionHandler.checkAccess(
+                _state.value.userPermissions,
+                UserPermissions.PROCESS_ELIMINAR_LINEA
+            )) {
+                is AuthorizedActionHandler.CheckResult.HasAccess -> {
+                    executeDeleteLine(itemId, result.userCode)
+                }
+                is AuthorizedActionHandler.CheckResult.RequiresAuthorization -> {
+                    pendingAuthorizedAction = { authorizedBy -> executeDeleteLine(itemId, authorizedBy) }
+                    currentProcessCode = UserPermissions.PROCESS_ELIMINAR_LINEA
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = AuthorizationDialogState(
+                                isVisible = true,
+                                title = "Eliminar Línea",
+                                message = "Para eliminar el articulo $itemName debe solicitar autorización",
+                                actionButtonText = "Eliminar Línea",
+                                processCode = UserPermissions.PROCESS_ELIMINAR_LINEA
+                            )
+                        )
+                    }
+                }
             }
         }
     }
 
     private fun handleChangeQuantityRequest(itemId: String, itemName: String) {
-        val permissions = _state.value.userPermissions
-        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO) ?: false
-
         // Find the item to get lineNumber and current quantity
         val item = _state.value.invoiceData.items.find { it.itemId == itemId }
         if (item == null) {
@@ -799,35 +858,37 @@ class BillingViewModel @Inject constructor(
             return
         }
 
-        if (hasAccess) {
-            // User has access, show quantity dialog directly with user's code as authorizer
-            viewModelScope.launch {
-                val userCode = sessionManager.getUserCode().first()
-                showChangeQuantityDialog(itemId, itemName, item.lineItemSequence, item.quantity, userCode)
-            }
-        } else {
-            // User doesn't have access, show authorization dialog first
-            // Store item info in state for after authorization
-            _state.update {
-                it.copy(
-                    changeQuantityItemId = itemId,
-                    changeQuantityItemName = itemName,
-                    changeQuantityLineNumber = item.lineItemSequence,
-                    changeQuantityCurrentQty = item.quantity,
-                    changeQuantityAuthorizedBy = null, // Will be set after authorization
-                    authorizationDialogState = AuthorizationDialogState(
-                        isVisible = true,
-                        title = "Cambiar Cantidad",
-                        message = "Para cambiar la cantidad del articulo $itemName debe solicitar autorización",
-                        actionButtonText = "Cambiar Cantidad",
-                        processCode = UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
-                    ),
-                    pendingAuthorizationAction = PendingAuthorizationAction.ChangeQuantity(
-                        itemId = itemId,
-                        lineNumber = item.lineItemSequence,
-                        newQuantity = 0.0 // Will be set when user enters quantity
-                    )
-                )
+        viewModelScope.launch {
+            when (val result = authorizedActionHandler.checkAccess(
+                _state.value.userPermissions,
+                UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
+            )) {
+                is AuthorizedActionHandler.CheckResult.HasAccess -> {
+                    // User has access, show quantity dialog directly with user's code as authorizer
+                    showChangeQuantityDialog(itemId, itemName, item.lineItemSequence, item.quantity, result.userCode)
+                }
+                is AuthorizedActionHandler.CheckResult.RequiresAuthorization -> {
+                    // Set callback and show authorization dialog
+                    pendingAuthorizedAction = { authorizedBy -> executeChangeQuantity(itemId, authorizedBy) }
+                    currentProcessCode = UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
+                    // Store item info in state for after authorization
+                    _state.update {
+                        it.copy(
+                            changeQuantityItemId = itemId,
+                            changeQuantityItemName = itemName,
+                            changeQuantityLineNumber = item.lineItemSequence,
+                            changeQuantityCurrentQty = item.quantity,
+                            changeQuantityAuthorizedBy = null,
+                            authorizationDialogState = AuthorizationDialogState(
+                                isVisible = true,
+                                title = "Cambiar Cantidad",
+                                message = "Para cambiar la cantidad del articulo $itemName debe solicitar autorización",
+                                actionButtonText = "Cambiar Cantidad",
+                                processCode = UserPermissions.PROCESS_CAMBIAR_CANTIDAD_ARTICULO
+                            )
+                        )
+                    }
+                }
             }
         }
     }
@@ -847,58 +908,70 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun handleAbortTransactionRequest() {
-        val permissions = _state.value.userPermissions
-        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_ABORTAR_TRANSACCION) ?: false
-
-        if (hasAccess) {
-            // User has access, execute action directly
-            executeAbortTransaction()
-        } else {
-            // User doesn't have access, show authorization dialog
-            _state.update {
-                it.copy(
-                    authorizationDialogState = AuthorizationDialogState(
-                        isVisible = true,
-                        title = "Abortar Transacción",
-                        message = "Para abortar la transacción debe solicitar autorización",
-                        actionButtonText = "Abortar Transacción",
-                        processCode = UserPermissions.PROCESS_ABORTAR_TRANSACCION
-                    ),
-                    pendingAuthorizationAction = PendingAuthorizationAction.AbortTransaction
-                )
+        viewModelScope.launch {
+            when (val result = authorizedActionHandler.checkAccess(
+                _state.value.userPermissions,
+                UserPermissions.PROCESS_ABORTAR_TRANSACCION
+            )) {
+                is AuthorizedActionHandler.CheckResult.HasAccess -> {
+                    // User has access, execute action directly
+                    executeAbortTransaction(result.userCode)
+                }
+                is AuthorizedActionHandler.CheckResult.RequiresAuthorization -> {
+                    // Set callback and show authorization dialog
+                    pendingAuthorizedAction = { authorizedBy -> executeAbortTransaction(authorizedBy) }
+                    currentProcessCode = UserPermissions.PROCESS_ABORTAR_TRANSACCION
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = AuthorizationDialogState(
+                                isVisible = true,
+                                title = "Abortar Transacción",
+                                message = "Para abortar la transacción debe solicitar autorización",
+                                actionButtonText = "Abortar Transacción",
+                                processCode = UserPermissions.PROCESS_ABORTAR_TRANSACCION
+                            )
+                        )
+                    }
+                }
             }
         }
     }
 
     private fun handlePauseTransactionRequest() {
-        val permissions = _state.value.userPermissions
-        val hasAccess = permissions?.hasAccess(UserPermissions.PROCESS_TRANSACCION_EN_ESPERA) ?: false
-
-        if (hasAccess) {
-            // User has access, execute action directly
-            executePauseTransaction()
-        } else {
-            // User doesn't have access, show authorization dialog
-            _state.update {
-                it.copy(
-                    authorizationDialogState = AuthorizationDialogState(
-                        isVisible = true,
-                        title = "Pausar Transacción",
-                        message = "Para pausar la transacción debe solicitar autorización",
-                        actionButtonText = "Pausar Transacción",
-                        processCode = UserPermissions.PROCESS_TRANSACCION_EN_ESPERA
-                    ),
-                    pendingAuthorizationAction = PendingAuthorizationAction.PauseTransaction
-                )
+        viewModelScope.launch {
+            when (val result = authorizedActionHandler.checkAccess(
+                _state.value.userPermissions,
+                UserPermissions.PROCESS_TRANSACCION_EN_ESPERA
+            )) {
+                is AuthorizedActionHandler.CheckResult.HasAccess -> {
+                    // User has access, execute action directly
+                    executePauseTransaction()
+                }
+                is AuthorizedActionHandler.CheckResult.RequiresAuthorization -> {
+                    // Set callback and show authorization dialog
+                    pendingAuthorizedAction = { _ -> executePauseTransaction() }
+                    currentProcessCode = UserPermissions.PROCESS_TRANSACCION_EN_ESPERA
+                    _state.update {
+                        it.copy(
+                            authorizationDialogState = AuthorizationDialogState(
+                                isVisible = true,
+                                title = "Pausar Transacción",
+                                message = "Para pausar la transacción debe solicitar autorización",
+                                actionButtonText = "Pausar Transacción",
+                                processCode = UserPermissions.PROCESS_TRANSACCION_EN_ESPERA
+                            )
+                        )
+                    }
+                }
             }
         }
     }
 
     private fun submitAuthorization(userCode: String, password: String) {
         val dialogState = _state.value.authorizationDialogState
-        val pendingAction = _state.value.pendingAuthorizationAction
+        val actionCallback = pendingAuthorizedAction
 
-        if (pendingAction == null) {
+        if (actionCallback == null) {
             Log.e(TAG, "No pending authorization action")
             return
         }
@@ -911,117 +984,63 @@ class BillingViewModel @Inject constructor(
                 )
             }
 
-            authorizeProcessUseCase(userCode, password, dialogState.processCode)
-                .onSuccess {
+            when (val result = authorizedActionHandler.submitAuthorization(userCode, password, currentProcessCode)) {
+                is AuthorizedActionHandler.AuthorizationResult.Success -> {
                     // Authorization successful - close dialog and execute pending action
                     _state.update {
-                        it.copy(
-                            authorizationDialogState = AuthorizationDialogState(),
-                            pendingAuthorizationAction = null
-                        )
+                        it.copy(authorizationDialogState = AuthorizationDialogState())
                     }
 
-                    // Execute the pending action, passing authorizedBy for material authorization
-                    executePendingAction(pendingAction, authorizedBy = userCode)
+                    // Execute the pending callback with the authorizing user
+                    actionCallback(result.authorizedBy)
+                    pendingAuthorizedAction = null
+                    currentProcessCode = ""
                 }
-                .onFailure { error ->
-                    Log.e(TAG, "Authorization failed: ${error.message}")
+                is AuthorizedActionHandler.AuthorizationResult.Failed -> {
+                    Log.e(TAG, "Authorization failed: ${result.message}")
                     _state.update {
                         it.copy(
                             authorizationDialogState = dialogState.copy(
                                 isLoading = false,
-                                error = error.message
+                                error = result.message
                             )
                         )
                     }
                 }
-        }
-    }
-
-    private fun executePendingAction(pendingAction: PendingAuthorizationAction, authorizedBy: String? = null) {
-        when (pendingAction) {
-            is PendingAuthorizationAction.DeleteLine -> executeDeleteLine(pendingAction.itemId, authorizedBy)
-            is PendingAuthorizationAction.ChangeQuantity -> {
-                // If newQuantity is 0, show dialog to enter quantity
-                // If newQuantity > 0, execute the API call directly
-                if (pendingAction.newQuantity > 0) {
-                    executeChangeQuantityApi(
-                        itemId = pendingAction.itemId,
-                        lineNumber = pendingAction.lineNumber,
-                        newQuantity = pendingAction.newQuantity,
-                        authorizedBy = authorizedBy
-                    )
-                } else {
-                    // After authorization, show the quantity dialog with the authorizer's code
-                    executeChangeQuantity(pendingAction.itemId, authorizedBy)
-                }
             }
-            is PendingAuthorizationAction.AbortTransaction -> executeAbortTransaction(authorizedBy)
-            is PendingAuthorizationAction.PauseTransaction -> executePauseTransaction()
-            is PendingAuthorizationAction.AuthorizeMaterial -> executeAddMaterialWithAuthorization(
-                itemPosId = pendingAction.itemPosId,
-                quantity = pendingAction.quantity,
-                partyAffiliationTypeCode = pendingAction.partyAffiliationTypeCode,
-                authorizedBy = authorizedBy
-            )
         }
     }
 
     private fun executeDeleteLine(itemId: String, authorizedBy: String? = null) {
         Log.d(TAG, "Executing delete line for item: $itemId, authorizedBy: $authorizedBy")
         viewModelScope.launch {
-            try {
-                // If authorizedBy is provided, use it. Otherwise, get current user code (user has permission)
-                val authOperator = authorizedBy ?: sessionManager.getUserCode().first() ?: ""
-                val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
-                val transactionId = _state.value.transactionCode
+            val authOperator = authorizedBy ?: sessionManager.getUserCode().first() ?: ""
+            val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
+            val transactionId = _state.value.transactionCode
 
-                if (transactionId.isBlank()) {
-                    Log.e(TAG, "No transaction code for delete line")
-                    _state.update { it.copy(deleteLineError = "No hay transacción activa") }
-                    return@launch
-                }
+            _state.update { it.copy(isDeletingLine = true, deleteLineError = null) }
 
-                Log.d(TAG, "Calling voidItem API - transactionId: $transactionId, itemId: $itemId, authOperator: $authOperator, affiliateType: $affiliateType")
-
-                billingRepository.voidItem(
-                    transactionId = transactionId,
-                    itemPosId = itemId,
-                    authorizedOperator = authOperator,
-                    affiliateType = affiliateType,
-                    deleteAll = true
-                ).collect { result ->
-                    when (result) {
-                        is Resource.Loading -> {
-                            Log.d(TAG, "Delete line loading...")
-                            _state.update { it.copy(isDeletingLine = true, deleteLineError = null) }
-                        }
-                        is Resource.Success -> {
-                            Log.d(TAG, "Delete line success!")
-                            _state.update { it.copy(isDeletingLine = false) }
-                            // Refresh transaction details to update the UI
-                            loadTransactionDetails(transactionId)
-                        }
-                        is Resource.Error -> {
-                            Log.e(TAG, "Delete line error: ${result.message}")
-                            _state.update {
-                                it.copy(
-                                    isDeletingLine = false,
-                                    deleteLineError = result.message
-                                )
-                            }
-                        }
+            voidItemUseCase(
+                transactionId = transactionId,
+                itemPosId = itemId,
+                authorizedOperator = authOperator,
+                affiliateType = affiliateType
+            ).fold(
+                onSuccess = {
+                    Log.d(TAG, "Delete line success!")
+                    _state.update { it.copy(isDeletingLine = false) }
+                    loadTransactionDetails(transactionId)
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Delete line error: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            isDeletingLine = false,
+                            deleteLineError = error.message
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in executeDeleteLine: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        isDeletingLine = false,
-                        deleteLineError = "Error: ${e.message}"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -1076,81 +1095,59 @@ class BillingViewModel @Inject constructor(
     ) {
         Log.d(TAG, "Executing change quantity API - itemId: $itemId, lineNumber: $lineNumber, newQuantity: $newQuantity, authorizedBy: $authorizedBy")
         viewModelScope.launch {
-            try {
-                val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
-                val transactionId = _state.value.transactionCode
+            val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
+            val transactionId = _state.value.transactionCode
 
-                if (transactionId.isBlank()) {
-                    Log.e(TAG, "No transaction code for change quantity")
-                    _state.update { it.copy(changeQuantityError = "No hay transacción activa") }
-                    return@launch
-                }
+            _state.update { it.copy(isChangingQuantity = true, changeQuantityError = null) }
 
-                billingRepository.changeQuantity(
-                    transactionId = transactionId,
-                    itemPosId = itemId,
-                    lineNumber = lineNumber,
-                    newQuantity = newQuantity,
-                    partyAffiliationTypeCode = affiliateType,
-                    isAuthorized = true,
-                    authorizedBy = authorizedBy
-                ).collect { result ->
-                    when (result) {
-                        is Resource.Loading -> {
-                            Log.d(TAG, "Change quantity loading...")
-                            _state.update { it.copy(isChangingQuantity = true, changeQuantityError = null) }
-                        }
-                        is Resource.Success -> {
-                            Log.d(TAG, "Change quantity success!")
-                            // Use the returned invoice data directly
-                            val invoiceData = result.data ?: InvoiceData()
-                            _state.update {
-                                it.copy(
-                                    isChangingQuantity = false,
-                                    showChangeQuantityDialog = false,
-                                    changeQuantityNewQty = "",
-                                    changeQuantityItemId = "",
-                                    changeQuantityItemName = "",
-                                    changeQuantityLineNumber = 0,
-                                    changeQuantityCurrentQty = 0.0,
-                                    changeQuantityAuthorizedBy = null,
-                                    invoiceData = invoiceData
-                                )
-                            }
-                        }
-                        is Resource.Error -> {
-                            Log.e(TAG, "Change quantity error: ${result.message}")
-                            _state.update {
-                                it.copy(
-                                    isChangingQuantity = false,
-                                    changeQuantityError = result.message
-                                )
-                            }
-                        }
+            changeQuantityUseCase(
+                transactionId = transactionId,
+                itemPosId = itemId,
+                lineNumber = lineNumber,
+                newQuantity = newQuantity,
+                affiliateType = affiliateType,
+                authorizedBy = authorizedBy
+            ).fold(
+                onSuccess = { invoiceData ->
+                    Log.d(TAG, "Change quantity success!")
+                    _state.update {
+                        it.copy(
+                            isChangingQuantity = false,
+                            showChangeQuantityDialog = false,
+                            changeQuantityNewQty = "",
+                            changeQuantityItemId = "",
+                            changeQuantityItemName = "",
+                            changeQuantityLineNumber = 0,
+                            changeQuantityCurrentQty = 0.0,
+                            changeQuantityAuthorizedBy = null,
+                            invoiceData = invoiceData
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Change quantity error: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            isChangingQuantity = false,
+                            changeQuantityError = error.message
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in executeChangeQuantityApi: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        isChangingQuantity = false,
-                        changeQuantityError = "Error: ${e.message}"
-                    )
-                }
-            }
+            )
         }
     }
 
     private fun executeAbortTransaction(authorizedBy: String? = null) {
         Log.d(TAG, "Executing abort transaction - showing confirmation dialog, authorizedBy: $authorizedBy")
         viewModelScope.launch {
-            // If authorizedBy is provided, use it. Otherwise, get current user code (user has permission)
             val authOperator = authorizedBy ?: sessionManager.getUserCode().first() ?: ""
             _state.update {
                 it.copy(
-                    showAbortConfirmDialog = true,
-                    abortReason = "",
-                    abortAuthorizingOperator = authOperator
+                    transactionControl = it.transactionControl.copy(
+                        showAbortConfirmDialog = true,
+                        abortReason = "",
+                        abortAuthorizingOperator = authOperator
+                    )
                 )
             }
         }
@@ -1159,102 +1156,54 @@ class BillingViewModel @Inject constructor(
     private fun confirmAbortTransaction() {
         Log.d(TAG, "confirmAbortTransaction() called")
         val transactionCode = _state.value.transactionCode
-        val reason = _state.value.abortReason.trim()
-        val authorizingOperator = _state.value.abortAuthorizingOperator
-
-        if (transactionCode.isBlank()) {
-            Log.e(TAG, "No transaction code")
-            _state.update {
-                it.copy(
-                    showAbortConfirmDialog = false,
-                    abortTransactionError = "No hay transacción activa"
-                )
-            }
-            return
-        }
+        val reason = _state.value.transactionControl.abortReason.trim()
+        val authorizingOperator = _state.value.transactionControl.abortAuthorizingOperator
 
         if (reason.isBlank()) {
             Log.e(TAG, "No abort reason provided")
-            // Don't close dialog, let UI show validation error
             return
         }
 
         viewModelScope.launch {
-            try {
-                Log.d(TAG, "Getting session data for abort...")
-                val sessionId = sessionManager.getSessionId().first()
-                val stationId = sessionManager.getStationId().first()
-                Log.d(TAG, "Session: $sessionId, Station: $stationId, AuthorizingOperator: $authorizingOperator")
+            _state.update {
+                it.copy(
+                    transactionControl = it.transactionControl.copy(
+                        isAbortingTransaction = true,
+                        showAbortConfirmDialog = false,
+                        abortTransactionError = null
+                    )
+                )
+            }
 
-                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+            abortTransactionUseCase(
+                transactionId = transactionCode,
+                reason = reason,
+                authorizingOperator = authorizingOperator
+            ).fold(
+                onSuccess = {
+                    Log.d(TAG, "Abort success!")
                     _state.update {
                         it.copy(
-                            showAbortConfirmDialog = false,
-                            abortTransactionError = "No hay sesión activa"
+                            transactionControl = TransactionControlState(shouldNavigateAfterAbort = true),
+                            transactionCode = "",
+                            isTransactionCreated = false,
+                            invoiceData = InvoiceData(),
+                            selectedCustomer = null
                         )
                     }
-                    return@launch
-                }
-
-                Log.d(TAG, "Calling billingRepository.abortTransaction...")
-                billingRepository.abortTransaction(
-                    sessionId = sessionId,
-                    workstationId = stationId,
-                    transactionId = transactionCode,
-                    reason = reason,
-                    authorizingOperator = authorizingOperator
-                ).collect { result ->
-                    Log.d(TAG, "Abort result received: $result")
-                    when (result) {
-                        is Resource.Loading -> {
-                            Log.d(TAG, "Abort loading...")
-                            _state.update {
-                                it.copy(
-                                    isAbortingTransaction = true,
-                                    showAbortConfirmDialog = false,
-                                    abortTransactionError = null
-                                )
-                            }
-                        }
-                        is Resource.Success -> {
-                            Log.d(TAG, "Abort success!")
-                            // Clear active transactionId from local database
-                            billingRepository.clearActiveTransactionId()
-                            // Reset transaction state and navigate
-                            _state.update {
-                                it.copy(
-                                    isAbortingTransaction = false,
-                                    shouldNavigateAfterAbort = true,
-                                    abortReason = "",
-                                    abortAuthorizingOperator = "",
-                                    transactionCode = "",
-                                    isTransactionCreated = false,
-                                    invoiceData = InvoiceData(),
-                                    selectedCustomer = null
-                                )
-                            }
-                        }
-                        is Resource.Error -> {
-                            Log.e(TAG, "Abort error: ${result.message}")
-                            _state.update {
-                                it.copy(
-                                    isAbortingTransaction = false,
-                                    abortTransactionError = result.message
-                                )
-                            }
-                        }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Abort error: ${error.message}")
+                    _state.update {
+                        it.copy(
+                            transactionControl = it.transactionControl.copy(
+                                isAbortingTransaction = false,
+                                abortTransactionError = error.message
+                            )
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in confirmAbortTransaction: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        isAbortingTransaction = false,
-                        showAbortConfirmDialog = false,
-                        abortTransactionError = "Error: ${e.message}"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -1340,178 +1289,94 @@ class BillingViewModel @Inject constructor(
 
     private fun executePauseTransaction() {
         Log.d(TAG, "Executing pause transaction - showing confirmation dialog")
-        _state.update { it.copy(showPauseConfirmDialog = true) }
+        _state.update {
+            it.copy(transactionControl = it.transactionControl.copy(showPauseConfirmDialog = true))
+        }
     }
 
     private fun confirmPauseTransaction() {
         Log.d(TAG, "confirmPauseTransaction() called")
         val transactionCode = _state.value.transactionCode
-        if (transactionCode.isBlank()) {
-            Log.e(TAG, "No transaction code")
+        val currentState = _state.value
+        val totalItems = currentState.invoiceData.items.getTotalItemCount()
+        val subtotal = currentState.invoiceData.totals.subTotal
+
+        viewModelScope.launch {
             _state.update {
                 it.copy(
-                    showPauseConfirmDialog = false,
-                    pauseTransactionError = "No hay transacción activa"
+                    transactionControl = it.transactionControl.copy(
+                        isPausingTransaction = true,
+                        showPauseConfirmDialog = false,
+                        pauseTransactionError = null
+                    )
                 )
             }
-            return
-        }
 
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "Getting session data for pause...")
-                val sessionId = sessionManager.getSessionId().first()
-                val stationId = sessionManager.getStationId().first()
-                Log.d(TAG, "Session: $sessionId, Station: $stationId")
-
-                if (sessionId.isNullOrBlank() || stationId.isNullOrBlank()) {
+            when (val result = pauseTransactionUseCase(
+                transactionId = transactionCode,
+                totalItems = totalItems,
+                subtotal = subtotal
+            )) {
+                is PauseTransactionUseCase.PauseResult.Success -> {
+                    Log.d(TAG, "Pause and print success!")
                     _state.update {
                         it.copy(
-                            showPauseConfirmDialog = false,
-                            pauseTransactionError = "No hay sesión activa"
+                            transactionControl = it.transactionControl.copy(
+                                isPausingTransaction = false,
+                                shouldNavigateAfterPause = true
+                            ),
+                            printState = PrintState(),
+                            transactionCode = "",
+                            isTransactionCreated = false,
+                            invoiceData = InvoiceData(),
+                            selectedCustomer = null
                         )
                     }
-                    return@launch
                 }
-
-                Log.d(TAG, "Calling billingRepository.pauseTransaction...")
-                billingRepository.pauseTransaction(
-                    transactionId = transactionCode,
-                    sessionId = sessionId,
-                    workstationId = stationId
-                ).collect { result ->
-                    Log.d(TAG, "Pause result received: $result")
-                    when (result) {
-                        is Resource.Loading -> {
-                            Log.d(TAG, "Pause loading...")
-                            _state.update {
-                                it.copy(
-                                    isPausingTransaction = true,
-                                    showPauseConfirmDialog = false,
-                                    pauseTransactionError = null
-                                )
-                            }
-                        }
-                        is Resource.Success -> {
-                            Log.d(TAG, "Pause success! Printing receipt...")
-                            // Clear active transactionId from local database
-                            billingRepository.clearActiveTransactionId()
-                            // Capture data before resetting state
-                            val currentState = _state.value
-                            val totalItems = currentState.invoiceData.items.filter { !it.isDeleted }.sumOf { it.quantity }.toInt()
-                            val subtotal = currentState.invoiceData.totals.subTotal
-                            val txnId = currentState.transactionCode
-
-                            // Get user name and print
-                            printPauseReceipt(
-                                transactionId = txnId,
-                                totalItems = totalItems,
-                                subtotal = subtotal
-                            )
-                        }
-                        is Resource.Error -> {
-                            Log.e(TAG, "Pause error: ${result.message}")
-                            _state.update {
-                                it.copy(
-                                    isPausingTransaction = false,
-                                    pauseTransactionError = result.message
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in confirmPauseTransaction: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        isPausingTransaction = false,
-                        showPauseConfirmDialog = false,
-                        pauseTransactionError = "Error: ${e.message}"
-                    )
-                }
-            }
-        }
-    }
-
-    // Print methods for pause receipt
-
-    private fun printPauseReceipt(
-        transactionId: String,
-        totalItems: Int,
-        subtotal: Double
-    ) {
-        viewModelScope.launch {
-            try {
-                val userName = sessionManager.getUserName().first() ?: "Usuario"
-                val businessUnitName = sessionManager.getBusinessUnitName().first() ?: "Megasuper"
-                Log.d(TAG, "Printing pause receipt for user: $userName, businessUnit: $businessUnitName")
-
-                val printText = LocalPrintTemplates.buildPendingTransactionReceipt(
-                    userName = userName,
-                    totalItems = totalItems,
-                    subtotal = subtotal,
-                    transactionId = transactionId,
-                    businessUnitName = businessUnitName
-                )
-
-                _state.update {
-                    it.copy(
-                        isPausingTransaction = false,
-                        isPrinting = true,
-                        pendingPrintText = printText
-                    )
-                }
-
-                printerManager.printText(printText)
-                    .onSuccess {
-                        Log.d(TAG, "Pause receipt printed successfully")
-                        // Reset transaction state and navigate
-                        _state.update {
-                            it.copy(
-                                isPrinting = false,
-                                pendingPrintText = null,
-                                shouldNavigateAfterPause = true,
-                                transactionCode = "",
-                                isTransactionCreated = false,
-                                invoiceData = InvoiceData(),
-                                selectedCustomer = null
-                            )
-                        }
-                    }
-                    .onFailure { error ->
-                        Log.e(TAG, "Failed to print pause receipt: ${error.message}")
-                        _state.update {
-                            it.copy(
+                is PauseTransactionUseCase.PauseResult.PrintFailed -> {
+                    Log.e(TAG, "Pause success but print failed: ${result.printError}")
+                    _state.update {
+                        it.copy(
+                            transactionControl = it.transactionControl.copy(isPausingTransaction = false),
+                            printState = it.printState.copy(
                                 isPrinting = false,
                                 showPrintErrorDialog = true,
-                                printErrorMessage = error.message ?: "Error al imprimir"
+                                printErrorMessage = result.printError,
+                                pendingPrintText = result.printText
                             )
-                        }
+                        )
                     }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception printing pause receipt: ${e.message}", e)
-                _state.update {
-                    it.copy(
-                        isPrinting = false,
-                        isPausingTransaction = false,
-                        showPrintErrorDialog = true,
-                        printErrorMessage = "Error: ${e.message}"
-                    )
+                }
+                is PauseTransactionUseCase.PauseResult.Failed -> {
+                    Log.e(TAG, "Pause failed: ${result.message}")
+                    _state.update {
+                        it.copy(
+                            transactionControl = it.transactionControl.copy(
+                                isPausingTransaction = false,
+                                pauseTransactionError = result.message
+                            )
+                        )
+                    }
                 }
             }
         }
     }
 
     private fun retryPrint() {
-        val printText = _state.value.pendingPrintText
-        val printTransactionCode = _state.value.pendingPrintTransactionCode
+        val printText = _state.value.printState.pendingPrintText
+        val printTransactionCode = _state.value.printState.pendingPrintTransactionCode
+        // Use isReprint based on whether documents were retrieved before the previous failure
+        val isReprint = _state.value.printState.documentsRetrievedBeforeFail
+        Log.d(TAG, "Retry print with isReprint=$isReprint")
 
         viewModelScope.launch {
             _state.update {
                 it.copy(
-                    showPrintErrorDialog = false,
-                    printErrorMessage = null,
-                    isPrinting = true
+                    printState = it.printState.copy(
+                        showPrintErrorDialog = false,
+                        printErrorMessage = null,
+                        isPrinting = true
+                    )
                 )
             }
 
@@ -1523,9 +1388,8 @@ class BillingViewModel @Inject constructor(
                             Log.d(TAG, "Retry print pause receipt successful")
                             _state.update {
                                 it.copy(
-                                    isPrinting = false,
-                                    pendingPrintText = null,
-                                    shouldNavigateAfterPause = true,
+                                    printState = PrintState(),
+                                    transactionControl = it.transactionControl.copy(shouldNavigateAfterPause = true),
                                     transactionCode = "",
                                     isTransactionCreated = false,
                                     invoiceData = InvoiceData(),
@@ -1537,9 +1401,11 @@ class BillingViewModel @Inject constructor(
                             Log.e(TAG, "Retry print pause receipt failed: ${error.message}")
                             _state.update {
                                 it.copy(
-                                    isPrinting = false,
-                                    showPrintErrorDialog = true,
-                                    printErrorMessage = error.message ?: "Error al imprimir"
+                                    printState = it.printState.copy(
+                                        isPrinting = false,
+                                        showPrintErrorDialog = true,
+                                        printErrorMessage = error.message ?: "Error al imprimir"
+                                    )
                                 )
                             }
                         }
@@ -1547,24 +1413,27 @@ class BillingViewModel @Inject constructor(
 
                 // Case 2: Retry printing finalize documents
                 !printTransactionCode.isNullOrBlank() -> {
-                    printDocumentsUseCase(printTransactionCode)
+                    printDocumentsUseCase(printTransactionCode, isReprint = isReprint)
                         .onSuccess { printedCount ->
                             Log.d(TAG, "Retry print documents successful: $printedCount documents")
                             _state.update {
                                 it.copy(
-                                    isPrinting = false,
-                                    pendingPrintTransactionCode = null,
+                                    printState = PrintState(),
                                     shouldNavigateBackToBilling = true
                                 )
                             }
                         }
                         .onFailure { error ->
                             Log.e(TAG, "Retry print documents failed: ${error.message}")
+                            val docsRetrieved = error is PrinterFailureException
                             _state.update {
                                 it.copy(
-                                    isPrinting = false,
-                                    showPrintErrorDialog = true,
-                                    printErrorMessage = error.message ?: "Error al imprimir los documentos"
+                                    printState = it.printState.copy(
+                                        isPrinting = false,
+                                        showPrintErrorDialog = true,
+                                        printErrorMessage = error.message ?: "Error al imprimir los documentos",
+                                        documentsRetrievedBeforeFail = docsRetrieved
+                                    )
                                 )
                             }
                         }
@@ -1579,8 +1448,8 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun skipPrint() {
-        val isPauseReceipt = _state.value.pendingPrintText != null
-        val isFinalizeDocuments = _state.value.pendingPrintTransactionCode != null
+        val isPauseReceipt = _state.value.printState.pendingPrintText != null
+        val isFinalizeDocuments = _state.value.printState.pendingPrintTransactionCode != null
 
         Log.d(TAG, "Skipping print - isPauseReceipt: $isPauseReceipt, isFinalizeDocuments: $isFinalizeDocuments")
 
@@ -1588,10 +1457,7 @@ class BillingViewModel @Inject constructor(
             // Skip printing finalize documents - just navigate to new transaction
             _state.update {
                 it.copy(
-                    showPrintErrorDialog = false,
-                    printErrorMessage = null,
-                    pendingPrintTransactionCode = null,
-                    isPrinting = false,
+                    printState = PrintState(),
                     shouldNavigateBackToBilling = true
                 )
             }
@@ -1599,11 +1465,8 @@ class BillingViewModel @Inject constructor(
             // Skip printing pause receipt - reset state and navigate
             _state.update {
                 it.copy(
-                    showPrintErrorDialog = false,
-                    printErrorMessage = null,
-                    pendingPrintText = null,
-                    isPrinting = false,
-                    shouldNavigateAfterPause = true,
+                    printState = PrintState(),
+                    transactionControl = it.transactionControl.copy(shouldNavigateAfterPause = true),
                     transactionCode = "",
                     isTransactionCreated = false,
                     invoiceData = InvoiceData(),
@@ -1623,144 +1486,83 @@ class BillingViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            billingRepository.getPackagingReconciliation(transactionId).collect { result ->
-                when (result) {
-                    is Resource.Loading -> {
-                        _state.update {
-                            it.copy(
-                                showPackagingDialog = true,
-                                isLoadingPackagings = true,
-                                loadPackagingsError = null
+            _state.update {
+                it.copy(
+                    packagingState = it.packagingState.copy(
+                        isVisible = true,
+                        isLoading = true,
+                        loadError = null
+                    )
+                )
+            }
+
+            getPackagingReconciliationUseCase(transactionId).fold(
+                onSuccess = { packagingItems ->
+                    val initialInputs = packagingItems.associate { it.itemPosId to "" }
+                    _state.update {
+                        it.copy(
+                            packagingState = it.packagingState.copy(
+                                isLoading = false,
+                                items = packagingItems,
+                                inputs = initialInputs
                             )
-                        }
+                        )
                     }
-                    is Resource.Success -> {
-                        val packagingItems = result.data ?: emptyList()
-                        // Initialize inputs with empty strings for each packaging item
-                        val initialInputs = packagingItems.associate { it.itemPosId to "" }
-                        _state.update {
-                            it.copy(
-                                isLoadingPackagings = false,
-                                packagingItems = packagingItems,
-                                packagingInputs = initialInputs
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            packagingState = it.packagingState.copy(
+                                isLoading = false,
+                                loadError = error.message
                             )
-                        }
-                    }
-                    is Resource.Error -> {
-                        _state.update {
-                            it.copy(
-                                isLoadingPackagings = false,
-                                loadPackagingsError = result.message
-                            )
-                        }
+                        )
                     }
                 }
-            }
+            )
         }
     }
 
     private fun submitPackagings() {
         val transactionId = _state.value.transactionCode
-        val packagingItems = _state.value.packagingItems
-        val packagingInputs = _state.value.packagingInputs
+        val packagingItems = _state.value.packagingState.items
+        val packagingInputs = _state.value.packagingState.inputs
         val affiliateType = _state.value.selectedCustomer?.affiliateType ?: "0001"
 
-        if (transactionId.isBlank()) {
-            Log.e(TAG, "No transaction code for submit packagings")
-            return
-        }
-
-        // Build list of packagings to update (only those with quantity > 0)
-        val packagingsToUpdate = packagingItems.mapNotNull { item ->
-            val inputValue = packagingInputs[item.itemPosId]?.toDoubleOrNull() ?: 0.0
-            if (inputValue > 0) {
-                // Validate quantity doesn't exceed available
-                if (inputValue > item.quantityToCharge) {
-                    _state.update {
-                        it.copy(updatePackagingsError = "La cantidad para ${item.description} no puede exceder ${item.quantityToCharge.toInt()}")
-                    }
-                    return
-                }
-                PackagingItemDto(itemPosId = item.itemPosId, quantity = inputValue)
-            } else {
-                null
-            }
-        }
-
-        if (packagingsToUpdate.isEmpty()) {
-            _state.update {
-                it.copy(updatePackagingsError = "Debe ingresar al menos un envase")
-            }
-            return
-        }
-
         viewModelScope.launch {
-            billingRepository.updatePackagings(
+            _state.update {
+                it.copy(
+                    packagingState = it.packagingState.copy(
+                        isUpdating = true,
+                        updateError = null
+                    )
+                )
+            }
+
+            updatePackagingsUseCase(
                 transactionId = transactionId,
-                packagings = packagingsToUpdate,
+                packagingItems = packagingItems,
+                packagingInputs = packagingInputs,
                 affiliateType = affiliateType
-            ).collect { result ->
-                when (result) {
-                    is Resource.Loading -> {
-                        _state.update {
-                            it.copy(
-                                isUpdatingPackagings = true,
-                                updatePackagingsError = null
-                            )
-                        }
+            ).fold(
+                onSuccess = {
+                    Log.d(TAG, "Packagings updated successfully")
+                    _state.update {
+                        it.copy(packagingState = PackagingDialogState())
                     }
-                    is Resource.Success -> {
-                        Log.d(TAG, "Packagings updated successfully")
-                        _state.update {
-                            it.copy(
-                                isUpdatingPackagings = false,
-                                showPackagingDialog = false,
-                                packagingItems = emptyList(),
-                                packagingInputs = emptyMap()
+                    loadTransactionDetails(transactionId)
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            packagingState = it.packagingState.copy(
+                                isUpdating = false,
+                                updateError = error.message
                             )
-                        }
-                        // Refresh transaction details
-                        loadTransactionDetails(transactionId)
-                    }
-                    is Resource.Error -> {
-                        _state.update {
-                            it.copy(
-                                isUpdatingPackagings = false,
-                                updatePackagingsError = result.message
-                            )
-                        }
+                        )
                     }
                 }
-            }
-        }
-    }
-
-    /**
-     * Filters items that should be visible in the UI:
-     * - Excludes items marked as deleted
-     * - Excludes orphaned packaging items (packaging whose nearest parent is deleted)
-     */
-    private fun getVisibleItems(items: List<InvoiceItem>): List<InvoiceItem> {
-        // Calculate orphaned packaging line sequences
-        val orphanedLineSeqs = mutableSetOf<Int>()
-        items.forEach { item ->
-            // Check if this item is a packaging (some parent references it)
-            val parentItems = items.filter { it.packagingItemId == item.itemId }
-            if (parentItems.isNotEmpty()) {
-                // This is a packaging item - find the nearest parent before this item
-                val nearestParent = parentItems
-                    .filter { it.lineItemSequence < item.lineItemSequence }
-                    .maxByOrNull { it.lineItemSequence }
-
-                if (nearestParent?.isDeleted == true) {
-                    orphanedLineSeqs.add(item.lineItemSequence)
-                }
-            }
-        }
-
-        // Return items that are NOT deleted AND NOT orphaned packaging
-        return items.filter { item ->
-            !item.isDeleted && !orphanedLineSeqs.contains(item.lineItemSequence)
+            )
         }
     }
 }

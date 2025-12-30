@@ -14,6 +14,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.PackagingReconciliationDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
+import com.devlosoft.megaposmobile.data.remote.dto.TodayTransactionDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
@@ -95,4 +96,9 @@ interface TransactionApi {
         @Path("transactionId") transactionId: String,
         @Body request: UpdatePackagingsRequestDto
     ): Response<Boolean>
+
+    @GET("transaction/today-completed")
+    suspend fun getTodayCompletedTransactions(
+        @Query("workstationId") workstationId: String
+    ): Response<List<TodayTransactionDto>>
 }
