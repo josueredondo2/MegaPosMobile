@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
+import com.devlosoft.megaposmobile.core.extensions.isPackagingItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AbortConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.AuthorizationDialog
@@ -410,6 +411,9 @@ fun TransactionScreen(
                         val hasActiveTransaction = state.transactionCode.isNotBlank()
                         val selectedItem = state.invoiceData.items.find { it.itemId == selectedItemId }
                         val hasPackagingItems = state.invoiceData.items.any { it.hasPackaging && !it.isDeleted }
+                        val selectedItemIsPackaging = selectedItemId?.let {
+                            state.invoiceData.items.isPackagingItem(it)
+                        } ?: false
 
                         DropdownMenuItem(
                             text = { Text("Pausar Transacción") },
@@ -437,7 +441,7 @@ fun TransactionScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Cambiar Cant. Línea Select.") },
-                            enabled = hasActiveTransaction && selectedItemId != null,
+                            enabled = hasActiveTransaction && selectedItemId != null && !selectedItemIsPackaging,
                             onClick = {
                                 showTransactionMenu = false
                                 selectedItem?.let { item ->
