@@ -51,8 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.devlosoft.megaposmobile.core.scanner.BarcodeScannerHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
@@ -103,15 +104,27 @@ fun TransactionScreen(
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
 
-    // Barcode scanner handler for Zebra/PAX hardware scanners
+    // Barcode scanner handler for Zebra hardware scanners (keyboard wedge mode)
     val scannerHandler = remember { BarcodeScannerHandler() }
 
-    // Track if the article TextField has focus
-    var isArticleFieldFocused by remember { mutableStateOf(false) }
+    // FocusRequester for article TextField (for PAX Slow mode)
+    val articleFocusRequester = remember { FocusRequester() }
 
     // Clean up scanner buffer when leaving screen
     DisposableEffect(Unit) {
         onDispose { scannerHandler.reset() }
+    }
+
+    // Auto-focus on article TextField when screen loads
+    LaunchedEffect(Unit) {
+        articleFocusRequester.requestFocus()
+    }
+
+    // Return focus to article TextField after adding an article
+    LaunchedEffect(state.isAddingArticle) {
+        if (!state.isAddingArticle) {
+            articleFocusRequester.requestFocus()
+        }
     }
 
     // TODO dialog (from state)
@@ -463,9 +476,7 @@ fun TransactionScreen(
                     .fillMaxWidth()
                     .height(48.dp)
                     .padding(horizontal = dimensions.horizontalPadding)
-                    .onFocusChanged { focusState ->
-                        isArticleFieldFocused = focusState.isFocused
-                    },
+                    .focusRequester(articleFocusRequester),
                 placeholder = { Text("Articulo", fontSize = dimensions.fontSizeSmall) },
                 enabled = !state.isAddingArticle,
                 trailingIcon = {

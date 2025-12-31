@@ -86,13 +86,25 @@ class ConfigurationViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             try {
-                val config = ServerConfigEntity(
-                    id = 1,
-                    serverUrl = currentState.serverUrl,
-                    serverName = currentState.hostname,
-                    isActive = true
-                )
-                serverConfigDao.insertServerConfig(config)
+                // Check if config already exists
+                val existingConfig = serverConfigDao.getActiveServerConfigSync()
+
+                if (existingConfig != null) {
+                    // Update only URL and hostname, preserve other settings (printer, dataphone)
+                    serverConfigDao.updateServerUrlAndName(
+                        serverUrl = currentState.serverUrl,
+                        serverName = currentState.hostname
+                    )
+                } else {
+                    // Create new config if none exists
+                    val config = ServerConfigEntity(
+                        id = 1,
+                        serverUrl = currentState.serverUrl,
+                        serverName = currentState.hostname,
+                        isActive = true
+                    )
+                    serverConfigDao.insertServerConfig(config)
+                }
                 _state.update { it.copy(isLoading = false, isSaved = true) }
             } catch (e: Exception) {
                 _state.update {

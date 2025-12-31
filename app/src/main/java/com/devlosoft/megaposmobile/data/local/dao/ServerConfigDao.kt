@@ -33,4 +33,7 @@ interface ServerConfigDao {
 
     @Query("SELECT dataphoneTerminalId FROM server_config WHERE id = 1")
     suspend fun getDataphoneTerminalId(): String?
+
+    @Query("UPDATE server_config SET serverUrl = :serverUrl, serverName = :serverName WHERE id = 1")
+    suspend fun updateServerUrlAndName(serverUrl: String, serverName: String)
 }
