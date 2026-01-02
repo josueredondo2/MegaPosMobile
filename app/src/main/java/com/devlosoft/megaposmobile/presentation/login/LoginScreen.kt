@@ -111,7 +111,7 @@ fun LoginScreen(
 
                     // Título
                     Text(
-                        text = "MegaPOS Mobile",
+                        text = "MEGAPOS",
                         fontSize = dimensions.fontSizeTitle,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
