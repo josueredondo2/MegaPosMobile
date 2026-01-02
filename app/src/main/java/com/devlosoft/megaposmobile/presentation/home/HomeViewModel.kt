@@ -16,6 +16,7 @@ import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.dto.PaxCloseResponseDto
 import com.devlosoft.megaposmobile.domain.repository.PaymentRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
+import com.devlosoft.megaposmobile.domain.usecase.CheckVersionUseCase
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.usecase.LogoutUseCase
@@ -49,7 +50,8 @@ class HomeViewModel @Inject constructor(
     private val dataphoneManager: DataphoneManager,
     private val paymentRepository: PaymentRepository,
     private val gson: Gson,
-    private val dataphoneState: DataphoneState
+    private val dataphoneState: DataphoneState,
+    private val checkVersionUseCase: CheckVersionUseCase
 ) : ViewModel() {
 
     companion object {
@@ -456,6 +458,43 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun handleRequestBilling() {
+        viewModelScope.launch {
+            // First verify app version
+            checkVersionUseCase().collect { versionResult ->
+                when (versionResult) {
+                    is Resource.Loading -> {
+                        _state.update { it.copy(isCheckingPrinter = true) }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isCheckingPrinter = false,
+                                printerError = versionResult.message ?: "Error al verificar versión"
+                            )
+                        }
+                        return@collect
+                    }
+                    is Resource.Success -> {
+                        if (versionResult.data?.isValid != true) {
+                            _state.update {
+                                it.copy(
+                                    isCheckingPrinter = false,
+                                    printerError = versionResult.data?.errorMessage ?: "Versión no válida"
+                                )
+                            }
+                            return@collect
+                        }
+
+                        // Version valid - continue with billing flow
+                        _state.update { it.copy(isCheckingPrinter = false) }
+                        checkBillingPermissionAndProceed()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkBillingPermissionAndProceed() {
         val hasAccess = _state.value.userPermissions?.hasAccess(UserPermissions.PROCESS_FACTURAR) ?: false
         if (hasAccess) {
             checkPrinterConnection()
@@ -564,7 +603,7 @@ class HomeViewModel @Inject constructor(
             is HomePendingAction.OpenTerminal -> onNavigateToProcessCallback?.invoke("openTerminal")
             is HomePendingAction.CloseTerminal -> onNavigateToProcessCallback?.invoke("closeTerminal")
             is HomePendingAction.CloseDatafono -> onNavigateToProcessCallback?.invoke("closeDataphone")
-            is HomePendingAction.Billing -> checkPrinterConnection()
+            is HomePendingAction.Billing -> checkPrinterConnection() // Version was already checked in handleRequestBilling
             is HomePendingAction.ViewTransactions -> onNavigateToTodayTransactionsCallback?.invoke()
             is HomePendingAction.AdvancedOptions -> onNavigateToAdvancedOptionsCallback?.invoke()
         }
