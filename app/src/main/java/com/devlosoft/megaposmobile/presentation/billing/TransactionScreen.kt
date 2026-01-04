@@ -52,8 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import com.devlosoft.megaposmobile.core.scanner.BarcodeScannerHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
@@ -108,24 +106,9 @@ fun TransactionScreen(
     // Barcode scanner handler for Zebra hardware scanners (keyboard wedge mode)
     val scannerHandler = remember { BarcodeScannerHandler() }
 
-    // FocusRequester for article TextField (for PAX Slow mode)
-    val articleFocusRequester = remember { FocusRequester() }
-
     // Clean up scanner buffer when leaving screen
     DisposableEffect(Unit) {
         onDispose { scannerHandler.reset() }
-    }
-
-    // Auto-focus on article TextField when screen loads
-    LaunchedEffect(Unit) {
-        articleFocusRequester.requestFocus()
-    }
-
-    // Return focus to article TextField after adding an article
-    LaunchedEffect(state.isAddingArticle) {
-        if (!state.isAddingArticle) {
-            articleFocusRequester.requestFocus()
-        }
     }
 
     // TODO dialog (from state)
@@ -330,7 +313,7 @@ fun TransactionScreen(
                 return@onPreviewKeyEvent true
             }
 
-            // Process hardware scanner input (Zebra/PAX)
+            // Process hardware scanner input (Zebra)
             // Scanner has priority - uses timing to distinguish from manual input
             val barcode = scannerHandler.processKeyEvent(keyEvent)
             if (barcode != null) {
@@ -479,8 +462,7 @@ fun TransactionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .padding(horizontal = dimensions.horizontalPadding)
-                    .focusRequester(articleFocusRequester),
+                    .padding(horizontal = dimensions.horizontalPadding),
                 placeholder = { Text("Articulo", fontSize = dimensions.fontSizeSmall) },
                 enabled = !state.isAddingArticle,
                 trailingIcon = {
