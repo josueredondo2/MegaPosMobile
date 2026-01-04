@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.domain.usecase.CheckVersionUseCase
 import com.devlosoft.megaposmobile.domain.usecase.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase
+    private val loginUseCase: LoginUseCase,
+    private val checkVersionUseCase: CheckVersionUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginState())
@@ -42,30 +44,64 @@ class LoginViewModel @Inject constructor(
 
     private fun login() {
         viewModelScope.launch {
-            val currentState = _state.value
-
-            loginUseCase(currentState.userCode, currentState.password).collect { result ->
-                when (result) {
+            // First verify app version
+            checkVersionUseCase().collect { versionResult ->
+                when (versionResult) {
                     is Resource.Loading -> {
                         _state.update { it.copy(isLoading = true, error = null) }
-                    }
-                    is Resource.Success -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                isLoginSuccessful = true,
-                                error = null
-                            )
-                        }
                     }
                     is Resource.Error -> {
                         _state.update {
                             it.copy(
                                 isLoading = false,
-                                error = result.message,
-                                isLoginSuccessful = false
+                                error = versionResult.message ?: "Error al verificar versión"
                             )
                         }
+                        return@collect
+                    }
+                    is Resource.Success -> {
+                        if (versionResult.data?.isValid != true) {
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    error = versionResult.data?.errorMessage ?: "Versión no válida"
+                                )
+                            }
+                            return@collect
+                        }
+
+                        // Version valid - proceed with login
+                        performLogin()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun performLogin() {
+        val currentState = _state.value
+
+        loginUseCase(currentState.userCode, currentState.password).collect { result ->
+            when (result) {
+                is Resource.Loading -> {
+                    _state.update { it.copy(isLoading = true, error = null) }
+                }
+                is Resource.Success -> {
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoginSuccessful = true,
+                            error = null
+                        )
+                    }
+                }
+                is Resource.Error -> {
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            error = result.message,
+                            isLoginSuccessful = false
+                        )
                     }
                 }
             }

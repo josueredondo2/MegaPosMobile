@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,7 +26,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:6060/pos-api/v1/\"")
 
         // Development mode - skips printer connectivity test
-        buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
+        buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
     }
 
     buildTypes {
