@@ -643,7 +643,10 @@ class BillingViewModel @Inject constructor(
 
         val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
 
-        // Close dialog and proceed with transaction
+        // Get the economic activity code from the selected activity
+        val activityCode = selectedActivity?.code ?: selectedSearchActivity?.code
+
+        // Close dialog, save activity code, and proceed with transaction
         _state.update {
             it.copy(
                 showActivityDialog = false,
@@ -652,7 +655,8 @@ class BillingViewModel @Inject constructor(
                 searchedActivities = emptyList(),
                 selectedSearchActivity = null,
                 activityCurrentPage = 1,
-                activityHasNextPage = false
+                activityHasNextPage = false,
+                selectedEconomicActivityCode = activityCode
             )
         }
 
@@ -841,7 +845,9 @@ class BillingViewModel @Inject constructor(
                 customerIdType = customerIdType,
                 customerName = customerName,
                 isAuthorized = canAuthorizeRestrictedMaterials,
-                authorizedBy = userCode
+                authorizedBy = userCode,
+                economicActivityId = _state.value.selectedEconomicActivityCode,
+                transactionTypeCode = _state.value.documentType
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
@@ -1487,7 +1493,9 @@ class BillingViewModel @Inject constructor(
                 customerIdType = customerIdType,
                 customerName = customerName,
                 isAuthorized = true,
-                authorizedBy = authorizedBy
+                authorizedBy = authorizedBy,
+                economicActivityId = _state.value.selectedEconomicActivityCode,
+                transactionTypeCode = _state.value.documentType
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {

@@ -2,10 +2,7 @@ package com.devlosoft.megaposmobile.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-data class AddMaterialRequestDto(
-    @SerializedName("transactionId")
-    val transactionId: String = "",
-
+data class MaterialDetailsDto(
     @SerializedName("itemPosId")
     val itemPosId: String,
 
@@ -22,14 +19,10 @@ data class AddMaterialRequestDto(
     val isAuthorized: Boolean = false,
 
     @SerializedName("authorizedBy")
-    val authorizedBy: String? = null,
+    val authorizedBy: String? = null
+)
 
-    @SerializedName("sessionId")
-    val sessionId: String? = null,
-
-    @SerializedName("workstationId")
-    val workstationId: String? = null,
-
+data class TransactionDetailsDto(
     @SerializedName("customerId")
     val customerId: String? = null,
 
@@ -37,5 +30,28 @@ data class AddMaterialRequestDto(
     val customerIdType: String? = null,
 
     @SerializedName("customerName")
-    val customerName: String? = null
+    val customerName: String? = null,
+
+    @SerializedName("economicActivityId")
+    val economicActivityId: String? = null,
+
+    @SerializedName("transactionTypeCode")
+    val transactionTypeCode: String? = "CO"
+)
+
+data class AddMaterialRequestDto(
+    @SerializedName("transactionId")
+    val transactionId: String = "",
+
+    @SerializedName("sessionId")
+    val sessionId: String? = null,
+
+    @SerializedName("workstationId")
+    val workstationId: String? = null,
+
+    @SerializedName("material")
+    val material: MaterialDetailsDto,
+
+    @SerializedName("transaction")
+    val transaction: TransactionDetailsDto
 )

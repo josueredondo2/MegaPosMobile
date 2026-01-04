@@ -36,6 +36,7 @@ data class BillingState(
     val activityCurrentPage: Int = 1,
     val activityHasNextPage: Boolean = false,
     val isLoadingMoreActivities: Boolean = false,
+    val selectedEconomicActivityCode: String? = null,  // Economic activity code for addMaterial
 
     // Transaction state
     val transactionCode: String = "",
