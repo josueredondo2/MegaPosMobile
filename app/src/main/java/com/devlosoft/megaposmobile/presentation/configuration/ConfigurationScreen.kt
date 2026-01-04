@@ -1,8 +1,10 @@
 package com.devlosoft.megaposmobile.presentation.configuration
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -58,7 +62,7 @@ fun ConfigurationScreen(
 
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) {
-            snackbarHostState.showSnackbar("Configuración guardada exitosamente")
+            snackbarHostState.showSnackbar("Configuracion guardada exitosamente")
             viewModel.onEvent(ConfigurationEvent.ClearSavedFlag)
         }
     }
@@ -99,7 +103,7 @@ fun ConfigurationScreen(
                 ) {
                     Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
 
-                    // Título
+                    // Titulo
                     Text(
                         text = "POS Mobile",
                         fontSize = dimensions.fontSizeTitle,
@@ -109,7 +113,7 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerSmall))
 
-                    // Subtítulo
+                    // Subtitulo
                     Text(
                         text = "Configura esta unidad",
                         fontSize = dimensions.fontSizeLarge,
@@ -119,19 +123,19 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Campo Dirección POS API
+                    // Campo IP o Dominio del Servidor con Puerto
                     OutlinedTextField(
-                        value = state.serverUrl,
-                        onValueChange = { viewModel.onEvent(ConfigurationEvent.ServerUrlChanged(it)) },
+                        value = state.serverHost,
+                        onValueChange = { viewModel.onEvent(ConfigurationEvent.ServerHostChanged(it)) },
                         label = {
                             Text(
-                                text = "Dirección POS API",
+                                text = "Servidor (IP:Puerto)",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
                         placeholder = {
                             Text(
-                                text = "http://[dominio]:puerto",
+                                text = "192.168.1.100:5166",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
@@ -156,6 +160,30 @@ fun ConfigurationScreen(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerSmall))
+
+                    // Checkbox HTTPS
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = state.useHttps,
+                            onCheckedChange = { viewModel.onEvent(ConfigurationEvent.UseHttpsChanged(it)) },
+                            enabled = !state.isLoading,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MegaSuperRed,
+                                uncheckedColor = Color.Gray
+                            )
+                        )
+                        Text(
+                            text = "Usar HTTPS",
+                            fontSize = dimensions.fontSizeSmall,
+                            color = Color.Gray
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
 
@@ -253,7 +281,7 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Botón Guardar
+                    // Boton Guardar
                     Button(
                         onClick = { viewModel.onEvent(ConfigurationEvent.Save) },
                         modifier = Modifier

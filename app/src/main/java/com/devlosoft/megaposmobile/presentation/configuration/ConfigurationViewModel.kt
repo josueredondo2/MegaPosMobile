@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.presentation.configuration
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.devlosoft.megaposmobile.core.common.ApiConfig
 import com.devlosoft.megaposmobile.core.util.DeviceIdentifier
 import com.devlosoft.megaposmobile.core.util.NetworkUtils
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
@@ -46,7 +47,8 @@ class ConfigurationViewModel @Inject constructor(
                 config?.let {
                     _state.update { currentState ->
                         currentState.copy(
-                            serverUrl = config.serverUrl,
+                            serverHost = ApiConfig.extractHostFromUrl(config.serverUrl),
+                            useHttps = config.useHttps,
                             hostname = config.serverName
                         )
                     }
@@ -57,8 +59,11 @@ class ConfigurationViewModel @Inject constructor(
 
     fun onEvent(event: ConfigurationEvent) {
         when (event) {
-            is ConfigurationEvent.ServerUrlChanged -> {
-                _state.update { it.copy(serverUrl = event.url) }
+            is ConfigurationEvent.ServerHostChanged -> {
+                _state.update { it.copy(serverHost = event.host) }
+            }
+            is ConfigurationEvent.UseHttpsChanged -> {
+                _state.update { it.copy(useHttps = event.useHttps) }
             }
             is ConfigurationEvent.HostnameChanged -> {
                 _state.update { it.copy(hostname = event.hostname) }
@@ -78,30 +83,39 @@ class ConfigurationViewModel @Inject constructor(
     private fun saveConfiguration() {
         val currentState = _state.value
 
-        if (currentState.serverUrl.isBlank()) {
-            _state.update { it.copy(error = "La URL del servidor es requerida") }
+        if (currentState.serverHost.isBlank()) {
+            _state.update { it.copy(error = "La IP o dominio del servidor es requerida") }
+            return
+        }
+
+        if (!ApiConfig.isValidHost(currentState.serverHost)) {
+            _state.update { it.copy(error = "Formato de IP o dominio invalido") }
             return
         }
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             try {
+                val fullUrl = ApiConfig.buildGatewayUrl(currentState.serverHost, currentState.useHttps)
+
                 // Check if config already exists
                 val existingConfig = serverConfigDao.getActiveServerConfigSync()
 
                 if (existingConfig != null) {
-                    // Update only URL and hostname, preserve other settings (printer, dataphone)
-                    serverConfigDao.updateServerUrlAndName(
-                        serverUrl = currentState.serverUrl,
-                        serverName = currentState.hostname
+                    // Update URL, hostname and HTTPS setting
+                    serverConfigDao.updateServerConfig(
+                        serverUrl = fullUrl,
+                        serverName = currentState.hostname,
+                        useHttps = currentState.useHttps
                     )
                 } else {
                     // Create new config if none exists
                     val config = ServerConfigEntity(
                         id = 1,
-                        serverUrl = currentState.serverUrl,
+                        serverUrl = fullUrl,
                         serverName = currentState.hostname,
-                        isActive = true
+                        isActive = true,
+                        useHttps = currentState.useHttps
                     )
                     serverConfigDao.insertServerConfig(config)
                 }
@@ -110,7 +124,7 @@ class ConfigurationViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = "Error al guardar la configuración: ${e.message}"
+                        error = "Error al guardar la configuracion: ${e.message}"
                     )
                 }
             }

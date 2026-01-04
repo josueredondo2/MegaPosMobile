@@ -1,5 +1,7 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
+import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivityDto
+import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivitySearchItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
@@ -15,6 +17,25 @@ data class BillingState(
     val selectedCustomer: Customer? = null,
     val isSearchingCustomer: Boolean = false,
     val customerSearchError: String? = null,
+    val documentType: String = "CO",  // "CO" = Tiquete Electronico (default), "FC" = Factura Electronica
+
+    // FEL client validation state
+    val isValidatingClient: Boolean = false,
+    val clientValidationError: String? = null,
+
+    // Economic activity selection state
+    val showActivityDialog: Boolean = false,
+    val economicActivities: List<EconomicActivityDto> = emptyList(),  // From client validation
+    val activitySearchQuery: String = "",
+    val selectedActivity: EconomicActivityDto? = null,
+    // Search results state
+    val searchedActivities: List<EconomicActivitySearchItemDto> = emptyList(),
+    val selectedSearchActivity: EconomicActivitySearchItemDto? = null,
+    val isSearchingActivities: Boolean = false,
+    val activitySearchError: String? = null,
+    val activityCurrentPage: Int = 1,
+    val activityHasNextPage: Boolean = false,
+    val isLoadingMoreActivities: Boolean = false,
 
     // Transaction state
     val transactionCode: String = "",

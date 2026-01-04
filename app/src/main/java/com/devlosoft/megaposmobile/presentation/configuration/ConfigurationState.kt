@@ -1,7 +1,8 @@
 package com.devlosoft.megaposmobile.presentation.configuration
 
 data class ConfigurationState(
-    val serverUrl: String = "",
+    val serverHost: String = "",
+    val useHttps: Boolean = false,
     val hostname: String = "",
     val androidId: String = "",
     val wifiIp: String = "",

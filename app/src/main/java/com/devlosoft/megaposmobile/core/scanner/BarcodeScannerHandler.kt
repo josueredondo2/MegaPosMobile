@@ -10,14 +10,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Handles barcode scanner input from hardware scanners (Zebra, PAX).
+ * Handles barcode scanner input from Zebra hardware scanners.
  *
  * Scanners configured in "Keyboard Wedge" mode send characters as key events.
  * This handler accumulates rapid keystrokes and detects barcode completion on ENTER.
  *
  * Supported devices:
  * - Zebra handhelds (DataWedge in Keystroke Output mode)
- * - PAX A920Pro (Scanner in TextBox Mode)
  */
 @Singleton
 class BarcodeScannerHandler @Inject constructor() {

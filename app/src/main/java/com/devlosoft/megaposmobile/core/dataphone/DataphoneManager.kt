@@ -103,7 +103,7 @@ class DataphoneManager @Inject constructor(
                         "MONTO: CRC ${amount}.00\n" +
                         "VALIDO SIN FIRMA\n" +
                         "==================",
-                totalAmount = "CRC${amount}.00",
+                totalAmount = "CRC${amount * 100}.00",
                 errorMessage = null
             )
         )

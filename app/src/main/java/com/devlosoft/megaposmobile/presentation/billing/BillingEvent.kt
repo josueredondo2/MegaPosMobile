@@ -1,5 +1,7 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
+import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivityDto
+import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivitySearchItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 
 sealed class BillingEvent {
@@ -9,6 +11,17 @@ sealed class BillingEvent {
     data class SelectCustomer(val customer: Customer) : BillingEvent()
     data object ClearCustomerSearch : BillingEvent()
     data object DismissCustomerSearchError : BillingEvent()
+    data class DocumentTypeChanged(val type: String) : BillingEvent()
+    data object DismissClientValidationError : BillingEvent()
+
+    // Economic activity selection events
+    data class ActivitySearchQueryChanged(val query: String) : BillingEvent()
+    data class SelectActivity(val activity: EconomicActivityDto) : BillingEvent()
+    data class SelectSearchActivity(val activity: EconomicActivitySearchItemDto) : BillingEvent()
+    data object SearchActivities : BillingEvent()  // Triggered on Enter/OK
+    data object LoadMoreActivities : BillingEvent()  // Load next page
+    data object ConfirmActivitySelection : BillingEvent()
+    data object DismissActivityDialog : BillingEvent()
 
     // Transaction events
     data object StartTransaction : BillingEvent()
