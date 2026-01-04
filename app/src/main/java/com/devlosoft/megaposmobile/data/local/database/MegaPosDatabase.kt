@@ -49,7 +49,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 
 @Database(
     entities = [ServerConfigEntity::class, ActiveTransactionEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {

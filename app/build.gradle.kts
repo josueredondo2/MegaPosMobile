@@ -22,8 +22,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // BuildConfig field for API base URL
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:6060/pos-api/v1/\"")
+        // BuildConfig field for API base URL (Gateway port 5166)
+        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5166/pos-api/v1/\"")
 
         // Development mode - skips printer connectivity test
         buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
@@ -36,7 +36,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"http://YOUR_SERVER_IP:6060/pos-api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://YOUR_SERVER_IP:5166/pos-api/v1/\"")
             buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
         }
     }

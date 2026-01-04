@@ -131,11 +131,12 @@ class BillingRepositoryImpl @Inject constructor(
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)
-                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                val errorMessage = errorResponse?.message
+                    ?: ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
                 emit(Resource.Error(errorMessage))
             }
         } catch (e: IOException) {
-            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+            emit(Resource.Error("Error de conexion. Verifique su conexion a internet."))
         } catch (e: Exception) {
             emit(Resource.Error("Error inesperado: ${e.message}"))
         }

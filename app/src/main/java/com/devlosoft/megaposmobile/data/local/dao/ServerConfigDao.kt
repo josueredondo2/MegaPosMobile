@@ -36,4 +36,7 @@ interface ServerConfigDao {
 
     @Query("UPDATE server_config SET serverUrl = :serverUrl, serverName = :serverName WHERE id = 1")
     suspend fun updateServerUrlAndName(serverUrl: String, serverName: String)
+
+    @Query("UPDATE server_config SET serverUrl = :serverUrl, serverName = :serverName, useHttps = :useHttps WHERE id = 1")
+    suspend fun updateServerConfig(serverUrl: String, serverName: String, useHttps: Boolean)
 }
