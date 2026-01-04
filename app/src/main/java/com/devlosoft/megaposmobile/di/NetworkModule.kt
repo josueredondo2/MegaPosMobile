@@ -7,6 +7,7 @@ import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.AuthApi
 import com.devlosoft.megaposmobile.data.remote.api.CashierStationApi
 import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
+import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.api.PaymentApi
 import com.devlosoft.megaposmobile.data.remote.api.SystemApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
@@ -17,6 +18,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -115,5 +117,22 @@ object NetworkModule {
     @Singleton
     fun provideSystemApi(retrofit: Retrofit): SystemApi {
         return retrofit.create(SystemApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("FelRetrofit")
+    fun provideFelRetrofit(okHttpClient: OkHttpClient, gson: Gson): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.FEL_API_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideFelApi(@Named("FelRetrofit") retrofit: Retrofit): FelApi {
+        return retrofit.create(FelApi::class.java)
     }
 }

@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.domain.repository
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
+import com.devlosoft.megaposmobile.data.remote.dto.ValidateClientResponseDto
 import com.devlosoft.megaposmobile.domain.model.AddMaterialResult
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -110,4 +111,13 @@ interface BillingRepository {
 
     // Today's completed transactions
     suspend fun getTodayCompletedTransactions(workstationId: String): Flow<Resource<List<TodayTransaction>>>
+
+    // FEL client validation
+    suspend fun validateClientForFel(
+        identificationType: String,
+        identification: String,
+        partyId: Int,
+        documentType: String,
+        userLogin: String
+    ): Flow<Resource<ValidateClientResponseDto>>
 }

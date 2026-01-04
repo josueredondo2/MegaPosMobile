@@ -1,7 +1,9 @@
 package com.devlosoft.megaposmobile.data.repository
 
+import android.util.Log
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
+import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityRequestDto
@@ -13,6 +15,8 @@ import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.ValidateClientRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.ValidateClientResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
 import com.devlosoft.megaposmobile.data.local.dao.ActiveTransactionDao
 import com.devlosoft.megaposmobile.data.local.entity.ActiveTransactionEntity
@@ -32,6 +36,7 @@ import javax.inject.Inject
 class BillingRepositoryImpl @Inject constructor(
     private val customerApi: CustomerApi,
     private val transactionApi: TransactionApi,
+    private val felApi: FelApi,
     private val activeTransactionDao: ActiveTransactionDao
 ) : BillingRepository {
 
@@ -496,6 +501,47 @@ class BillingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 val transactions = response.body()?.map { it.toDomain() } ?: emptyList()
                 emit(Resource.Success(transactions))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    // FEL client validation
+    override suspend fun validateClientForFel(
+        identificationType: String,
+        identification: String,
+        partyId: Int,
+        documentType: String,
+        userLogin: String
+    ): Flow<Resource<ValidateClientResponseDto>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = ValidateClientRequestDto(
+                identificationType = identificationType,
+                identification = identification,
+                partyId = partyId,
+                documentType = documentType,
+                userLogin = userLogin
+            )
+            Log.d("BillingRepo", "FEL Validate Request: $request")
+            val response = felApi.validateClient(request)
+            Log.d("BillingRepo", "FEL Validate Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                Log.d("BillingRepo", "FEL Validate Body: result=${body?.result}, stackTrace=${body?.stackTrace}")
+                if (body != null) {
+                    emit(Resource.Success(body))
+                } else {
+                    emit(Resource.Error("Respuesta vacía del servidor"))
+                }
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorResponse = ErrorResponseDto.fromJson(errorBody)

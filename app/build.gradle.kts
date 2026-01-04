@@ -24,6 +24,7 @@ android {
 
         // BuildConfig field for API base URL (Gateway port 5166)
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5166/pos-api/v1/\"")
+        buildConfigField("String", "FEL_API_BASE_URL", "\"http://10.0.2.2:5166/fel-api/v1/\"")
 
         // Development mode - skips printer connectivity test
         buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
@@ -37,6 +38,7 @@ android {
                 "proguard-rules.pro"
             )
             buildConfigField("String", "API_BASE_URL", "\"http://YOUR_SERVER_IP:5166/pos-api/v1/\"")
+            buildConfigField("String", "FEL_API_BASE_URL", "\"http://YOUR_SERVER_IP:5166/fel-api/v1/\"")
             buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
         }
     }

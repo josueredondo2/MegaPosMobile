@@ -8,6 +8,7 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
+import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -46,6 +47,7 @@ import javax.inject.Inject
 class BillingViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
     private val sessionManager: SessionManager,
+    private val felApi: FelApi,
     private val authorizeProcessUseCase: AuthorizeProcessUseCase,
     private val printDocumentsUseCase: PrintDocumentsUseCase,
     private val getSessionInfoUseCase: GetSessionInfoUseCase,
@@ -100,6 +102,45 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.SelectCustomer -> {
                 selectCustomer(event.customer)
+            }
+            is BillingEvent.DocumentTypeChanged -> {
+                _state.update { it.copy(documentType = event.type) }
+            }
+            is BillingEvent.DismissClientValidationError -> {
+                _state.update { it.copy(clientValidationError = null) }
+            }
+            // Economic activity events
+            is BillingEvent.ActivitySearchQueryChanged -> {
+                _state.update { it.copy(activitySearchQuery = event.query) }
+            }
+            is BillingEvent.SelectActivity -> {
+                _state.update { it.copy(selectedActivity = event.activity, selectedSearchActivity = null) }
+            }
+            is BillingEvent.SelectSearchActivity -> {
+                _state.update { it.copy(selectedSearchActivity = event.activity, selectedActivity = null) }
+            }
+            is BillingEvent.SearchActivities -> {
+                searchActivities()
+            }
+            is BillingEvent.LoadMoreActivities -> {
+                loadMoreActivities()
+            }
+            is BillingEvent.ConfirmActivitySelection -> {
+                confirmActivityAndProceed()
+            }
+            is BillingEvent.DismissActivityDialog -> {
+                _state.update {
+                    it.copy(
+                        showActivityDialog = false,
+                        economicActivities = emptyList(),
+                        activitySearchQuery = "",
+                        selectedActivity = null,
+                        searchedActivities = emptyList(),
+                        selectedSearchActivity = null,
+                        activityCurrentPage = 1,
+                        activityHasNextPage = false
+                    )
+                }
             }
             is BillingEvent.ClearCustomerSearch -> {
                 _state.update {
@@ -396,7 +437,7 @@ class BillingViewModel @Inject constructor(
                 sessionId = sessionId,
                 workstationId = stationId,
                 customerId = customer.partyId,
-                customerIdType = customer.identificationType,
+                customerIdType = _state.value.documentType,
                 customerName = customer.name,
                 affiliateType = customer.affiliateType
             ).collect { result ->
@@ -460,6 +501,86 @@ class BillingViewModel @Inject constructor(
     private fun startTransaction() {
         // Use default customer if none selected
         val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
+        val documentType = _state.value.documentType
+
+        // If documentType is FC (Factura Electrónica), validate client first
+        if (documentType == "FC") {
+            validateClientAndProceed(customerToUse)
+        } else {
+            // Tiquete Electrónico (CO) - proceed directly
+            proceedWithTransaction(customerToUse)
+        }
+    }
+
+    private fun validateClientAndProceed(customerToUse: Customer) {
+        viewModelScope.launch {
+            val userLogin = sessionManager.getUserCode().first()
+
+            if (userLogin.isNullOrBlank()) {
+                _state.update {
+                    it.copy(createTransactionError = "No hay usuario activo")
+                }
+                return@launch
+            }
+
+            _state.update { it.copy(isValidatingClient = true) }
+
+            billingRepository.validateClientForFel(
+                identificationType = customerToUse.identificationType,
+                identification = customerToUse.identification,
+                partyId = customerToUse.partyId,
+                documentType = _state.value.documentType,
+                userLogin = userLogin
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> { }
+                    is Resource.Success -> {
+                        val response = result.data
+                        if (response?.result == 0) {
+                            // Validation successful
+                            val activities = response.activities ?: emptyList()
+                            if (activities.isNotEmpty()) {
+                                // Sort activities: type "P" first, then others
+                                val sortedActivities = activities.sortedByDescending { it.type == "P" }
+                                // Show activity selection dialog with first item selected by default
+                                _state.update {
+                                    it.copy(
+                                        isValidatingClient = false,
+                                        showActivityDialog = true,
+                                        economicActivities = sortedActivities,
+                                        selectedActivity = sortedActivities.firstOrNull(),
+                                        activitySearchQuery = ""
+                                    )
+                                }
+                            } else {
+                                // No activities, proceed directly
+                                _state.update { it.copy(isValidatingClient = false) }
+                                proceedWithTransaction(customerToUse)
+                            }
+                        } else {
+                            // Validation failed, show error popup with stackTrace
+                            _state.update {
+                                it.copy(
+                                    isValidatingClient = false,
+                                    clientValidationError = response?.stackTrace
+                                )
+                            }
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                isValidatingClient = false,
+                                clientValidationError = result.message ?: "Error al validar cliente"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun proceedWithTransaction(customerToUse: Customer) {
         val transactionCode = _state.value.transactionCode
 
         if (transactionCode.isNotBlank()) {
@@ -507,6 +628,124 @@ class BillingViewModel @Inject constructor(
                     selectedCustomer = customerToUse,
                     shouldNavigateToTransaction = true
                 )
+            }
+        }
+    }
+
+    private fun confirmActivityAndProceed() {
+        val selectedActivity = _state.value.selectedActivity
+        val selectedSearchActivity = _state.value.selectedSearchActivity
+
+        // Must have either selection
+        if (selectedActivity == null && selectedSearchActivity == null) {
+            return
+        }
+
+        val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
+
+        // Close dialog and proceed with transaction
+        _state.update {
+            it.copy(
+                showActivityDialog = false,
+                economicActivities = emptyList(),
+                activitySearchQuery = "",
+                searchedActivities = emptyList(),
+                selectedSearchActivity = null,
+                activityCurrentPage = 1,
+                activityHasNextPage = false
+            )
+        }
+
+        proceedWithTransaction(customerToUse)
+    }
+
+    private fun searchActivities() {
+        viewModelScope.launch {
+            val userLogin = sessionManager.getUserCode().first() ?: return@launch
+            val searchTerm = _state.value.activitySearchQuery
+
+            _state.update {
+                it.copy(
+                    isSearchingActivities = true,
+                    activitySearchError = null,
+                    searchedActivities = emptyList(),
+                    selectedSearchActivity = null,
+                    activityCurrentPage = 1
+                )
+            }
+
+            try {
+                val response = felApi.searchEconomicActivities(
+                    userLogin = userLogin,
+                    searchTerm = searchTerm,
+                    pageSize = 10,
+                    pageNumber = 1
+                )
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    _state.update {
+                        it.copy(
+                            isSearchingActivities = false,
+                            searchedActivities = body?.data ?: emptyList(),
+                            activityCurrentPage = body?.pageNumber ?: 1,
+                            activityHasNextPage = body?.hasNextPage ?: false
+                        )
+                    }
+                } else {
+                    _state.update {
+                        it.copy(
+                            isSearchingActivities = false,
+                            activitySearchError = "Error al buscar actividades"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isSearchingActivities = false,
+                        activitySearchError = "Error de conexión: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadMoreActivities() {
+        if (_state.value.isLoadingMoreActivities || !_state.value.activityHasNextPage) {
+            return
+        }
+
+        viewModelScope.launch {
+            val userLogin = sessionManager.getUserCode().first() ?: return@launch
+            val searchTerm = _state.value.activitySearchQuery
+            val nextPage = _state.value.activityCurrentPage + 1
+
+            _state.update { it.copy(isLoadingMoreActivities = true) }
+
+            try {
+                val response = felApi.searchEconomicActivities(
+                    userLogin = userLogin,
+                    searchTerm = searchTerm,
+                    pageSize = 10,
+                    pageNumber = nextPage
+                )
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    _state.update {
+                        it.copy(
+                            isLoadingMoreActivities = false,
+                            searchedActivities = it.searchedActivities + (body?.data ?: emptyList()),
+                            activityCurrentPage = body?.pageNumber ?: nextPage,
+                            activityHasNextPage = body?.hasNextPage ?: false
+                        )
+                    }
+                } else {
+                    _state.update { it.copy(isLoadingMoreActivities = false) }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoadingMoreActivities = false) }
             }
         }
     }
