@@ -1,7 +1,5 @@
 package com.devlosoft.megaposmobile.presentation.configuration
 
-import com.devlosoft.megaposmobile.core.common.ApiConfig
-
 data class ConfigurationState(
     val serverHost: String = "",
     val useHttps: Boolean = false,
@@ -10,6 +8,5 @@ data class ConfigurationState(
     val wifiIp: String = "",
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
-    val error: String? = null,
-    val gatewayPort: Int = ApiConfig.GATEWAY_PORT
+    val error: String? = null
 )

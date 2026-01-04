@@ -123,19 +123,19 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
-                    // Campo IP o Dominio del Servidor
+                    // Campo IP o Dominio del Servidor con Puerto
                     OutlinedTextField(
                         value = state.serverHost,
                         onValueChange = { viewModel.onEvent(ConfigurationEvent.ServerHostChanged(it)) },
                         label = {
                             Text(
-                                text = "IP o Dominio del Servidor",
+                                text = "Servidor (IP:Puerto)",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
                         placeholder = {
                             Text(
-                                text = "192.168.1.100 o api.empresa.com",
+                                text = "192.168.1.100:5166",
                                 fontSize = dimensions.fontSizeMedium
                             )
                         },
@@ -163,38 +163,26 @@ fun ConfigurationScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerSmall))
 
-                    // Puerto Gateway (informativo)
+                    // Checkbox HTTPS
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Puerto Gateway: ${state.gatewayPort}",
-                            fontSize = dimensions.fontSizeSmall,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(start = 4.dp)
+                        Checkbox(
+                            checked = state.useHttps,
+                            onCheckedChange = { viewModel.onEvent(ConfigurationEvent.UseHttpsChanged(it)) },
+                            enabled = !state.isLoading,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MegaSuperRed,
+                                uncheckedColor = Color.Gray
+                            )
                         )
-
-                        // Checkbox HTTPS
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = state.useHttps,
-                                onCheckedChange = { viewModel.onEvent(ConfigurationEvent.UseHttpsChanged(it)) },
-                                enabled = !state.isLoading,
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = MegaSuperRed,
-                                    uncheckedColor = Color.Gray
-                                )
-                            )
-                            Text(
-                                text = "Usar HTTPS",
-                                fontSize = dimensions.fontSizeSmall,
-                                color = Color.Gray
-                            )
-                        }
+                        Text(
+                            text = "Usar HTTPS",
+                            fontSize = dimensions.fontSizeSmall,
+                            color = Color.Gray
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
