@@ -24,11 +24,12 @@ class BarcodeScannerHandler @Inject constructor() {
     companion object {
         private const val MAX_KEY_INTERVAL_MS = 100L // Max time between scanner keystrokes
         private const val MIN_BARCODE_LENGTH = 4     // Minimum valid barcode length
+        private const val SCAN_COMPLETE_TIMEOUT_MS = 150L // Time to wait after last digit to consider scan complete
     }
 
     private val buffer = StringBuilder()
     private var lastKeyTime = 0L
-    private var lastEventWasConsumed = false // Track if last processKeyEvent consumed an ENTER
+    private var lastEventWasConsumed = false
 
     /**
      * Process a key event and return the completed barcode if detected.
@@ -39,25 +40,39 @@ class BarcodeScannerHandler @Inject constructor() {
      * @return The complete barcode string if ENTER was pressed, null otherwise
      */
     fun processKeyEvent(keyEvent: androidx.compose.ui.input.key.KeyEvent): String? {
-        // Only process KEY_DOWN events
-        if (keyEvent.type != KeyEventType.KeyDown) {
+        val currentTime = System.currentTimeMillis()
+        val nativeKeyCode = keyEvent.key.nativeKeyCode
+        val isKeyDown = keyEvent.type == KeyEventType.KeyDown
+        val isKeyUp = keyEvent.type == KeyEventType.KeyUp
+
+        // For KEY_UP events on non-digit keys, check if we have a complete barcode
+        // This handles scanner trigger release (keycode 103) which comes after all digits
+        if (isKeyUp && nativeKeyCode !in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9) {
+            val timeSinceLastKey = currentTime - lastKeyTime
+            if (buffer.length >= MIN_BARCODE_LENGTH && timeSinceLastKey <= SCAN_COMPLETE_TIMEOUT_MS) {
+                val barcode = getAndClearBuffer()
+                lastEventWasConsumed = true
+                return barcode
+            }
             lastEventWasConsumed = false
             return null
         }
 
-        val currentTime = System.currentTimeMillis()
-        val nativeKeyCode = keyEvent.key.nativeKeyCode
+        // Only process KEY_DOWN events for the rest
+        if (!isKeyDown) {
+            lastEventWasConsumed = false
+            return null
+        }
 
         return when {
             // ENTER = end of barcode scan
             keyEvent.key == Key.Enter -> {
                 val barcode = getAndClearBuffer()
-                // Only consume and return if we have a valid barcode (fast input pattern)
                 if (barcode.length >= MIN_BARCODE_LENGTH) {
                     lastEventWasConsumed = true
                     barcode
                 } else {
-                    lastEventWasConsumed = false // Let ENTER pass to TextField for manual input
+                    lastEventWasConsumed = false
                     null
                 }
             }

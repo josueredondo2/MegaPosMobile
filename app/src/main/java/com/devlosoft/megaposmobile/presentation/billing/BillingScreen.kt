@@ -600,6 +600,15 @@ fun EconomicActivityDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, Color.Gray),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Salir", color = Color.Black)
+                    }
+
                     Button(
                         onClick = onConfirm,
                         modifier = Modifier.weight(1f),
@@ -611,15 +620,6 @@ fun EconomicActivityDialog(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("Seleccionar")
-                    }
-
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, Color.Gray),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Salir", color = Color.Black)
                     }
                 }
             }

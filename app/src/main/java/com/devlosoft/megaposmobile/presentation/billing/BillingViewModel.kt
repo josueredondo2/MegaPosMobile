@@ -173,9 +173,9 @@ class BillingViewModel @Inject constructor(
                 addArticle()
             }
             is BillingEvent.ScannerInput -> {
-                // Set barcode from scanner and add article automatically
-                _state.update { it.copy(articleSearchQuery = event.barcode) }
-                addArticle()
+                // Pass barcode directly to addArticle to avoid race condition
+                // where ArticleSearchQueryChanged might overwrite the state
+                addArticle(event.barcode)
             }
             is BillingEvent.DismissAddArticleError -> {
                 _state.update { it.copy(addArticleError = null) }
@@ -833,8 +833,8 @@ class BillingViewModel @Inject constructor(
         }
     }
 
-    private fun addArticle() {
-        val articleId = _state.value.articleSearchQuery.trim()
+    private fun addArticle(barcodeOverride: String? = null) {
+        val articleId = (barcodeOverride ?: _state.value.articleSearchQuery).trim()
         if (articleId.isBlank()) return
 
         viewModelScope.launch {
