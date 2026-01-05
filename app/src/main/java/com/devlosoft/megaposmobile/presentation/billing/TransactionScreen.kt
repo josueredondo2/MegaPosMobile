@@ -75,6 +75,7 @@ import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ErrorDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
+import com.devlosoft.megaposmobile.presentation.billing.components.CatalogDialog
 import com.devlosoft.megaposmobile.presentation.billing.components.PackagingDialog
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
@@ -290,6 +291,18 @@ fun TransactionScreen(
         )
     }
 
+    // Catalog Dialog
+    if (state.catalogState.isVisible) {
+        CatalogDialog(
+            state = state.catalogState,
+            onCategorySelected = { viewModel.onEvent(BillingEvent.SelectCatalogCategory(it)) },
+            onLetterSelected = { viewModel.onEvent(BillingEvent.SelectCatalogLetter(it)) },
+            onItemSelected = { item -> viewModel.onEvent(BillingEvent.AddCatalogItem(item.itemPosId)) },
+            onDismiss = { viewModel.onEvent(BillingEvent.DismissCatalogDialog) },
+            onDismissError = { viewModel.onEvent(BillingEvent.DismissCatalogError) }
+        )
+    }
+
     // Handle navigation after successful pause
     LaunchedEffect(state.shouldNavigateAfterPause) {
         if (state.shouldNavigateAfterPause) {
@@ -446,7 +459,7 @@ fun TransactionScreen(
                             text = { Text("Mostrar Catálogo") },
                             onClick = {
                                 showTransactionMenu = false
-                                viewModel.onEvent(BillingEvent.ShowTodoDialog("Mostrar Catálogo\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"))
+                                viewModel.onEvent(BillingEvent.OpenCatalogDialog)
                             }
                         )
                     }

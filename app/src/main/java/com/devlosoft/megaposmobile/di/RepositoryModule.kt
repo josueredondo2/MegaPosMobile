@@ -5,11 +5,13 @@ import com.devlosoft.megaposmobile.data.repository.BillingRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.CashierStationRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.PaymentRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.SystemRepositoryImpl
+import com.devlosoft.megaposmobile.data.repository.CatalogRepositoryImpl
 import com.devlosoft.megaposmobile.domain.repository.AuthRepository
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.repository.CashierStationRepository
 import com.devlosoft.megaposmobile.domain.repository.PaymentRepository
 import com.devlosoft.megaposmobile.domain.repository.SystemRepository
+import com.devlosoft.megaposmobile.domain.repository.CatalogRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -49,4 +51,10 @@ abstract class RepositoryModule {
     abstract fun bindSystemRepository(
         systemRepositoryImpl: SystemRepositoryImpl
     ): SystemRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCatalogRepository(
+        catalogRepositoryImpl: CatalogRepositoryImpl
+    ): CatalogRepository
 }

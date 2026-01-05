@@ -94,4 +94,12 @@ sealed class BillingEvent {
     data class PackagingQuantityChanged(val itemPosId: String, val quantity: String) : BillingEvent()
     data object SubmitPackagings : BillingEvent()
     data object DismissPackagingsError : BillingEvent()
+
+    // Catalog events
+    data object OpenCatalogDialog : BillingEvent()
+    data object DismissCatalogDialog : BillingEvent()
+    data class SelectCatalogCategory(val catalogTypeId: Int) : BillingEvent()
+    data class SelectCatalogLetter(val letter: Char) : BillingEvent()
+    data class AddCatalogItem(val itemPosId: String) : BillingEvent()
+    data object DismissCatalogError : BillingEvent()
 }

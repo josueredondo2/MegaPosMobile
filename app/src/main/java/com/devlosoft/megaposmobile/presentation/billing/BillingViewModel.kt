@@ -15,6 +15,7 @@ import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
+import com.devlosoft.megaposmobile.domain.repository.CatalogRepository
 import com.devlosoft.megaposmobile.domain.usecase.AuthorizeProcessUseCase
 import com.devlosoft.megaposmobile.domain.usecase.GetSessionInfoUseCase
 import com.devlosoft.megaposmobile.domain.usecase.PrintDocumentsUseCase
@@ -30,6 +31,7 @@ import com.devlosoft.megaposmobile.domain.usecase.billing.VoidItemUseCase
 import com.devlosoft.megaposmobile.core.extensions.getVisibleItems
 import com.devlosoft.megaposmobile.core.extensions.isPackagingItem
 import com.devlosoft.megaposmobile.core.extensions.getTotalItemCount
+import com.devlosoft.megaposmobile.presentation.billing.state.CatalogDialogState
 import com.devlosoft.megaposmobile.presentation.billing.state.PackagingDialogState
 import com.devlosoft.megaposmobile.presentation.billing.state.PrintState
 import com.devlosoft.megaposmobile.presentation.billing.state.TransactionControlState
@@ -46,6 +48,7 @@ import javax.inject.Inject
 @HiltViewModel
 class BillingViewModel @Inject constructor(
     private val billingRepository: BillingRepository,
+    private val catalogRepository: CatalogRepository,
     private val sessionManager: SessionManager,
     private val felApi: FelApi,
     private val authorizeProcessUseCase: AuthorizeProcessUseCase,
@@ -351,6 +354,35 @@ class BillingViewModel @Inject constructor(
                             updateError = null
                         )
                     )
+                }
+            }
+            // Catalog events
+            is BillingEvent.OpenCatalogDialog -> {
+                openCatalogDialog()
+            }
+            is BillingEvent.DismissCatalogDialog -> {
+                _state.update {
+                    it.copy(catalogState = CatalogDialogState())
+                }
+            }
+            is BillingEvent.SelectCatalogCategory -> {
+                selectCatalogCategory(event.catalogTypeId)
+            }
+            is BillingEvent.SelectCatalogLetter -> {
+                selectCatalogLetter(event.letter)
+            }
+            is BillingEvent.AddCatalogItem -> {
+                addCatalogItemToTransaction(event.itemPosId)
+            }
+            is BillingEvent.DismissCatalogError -> {
+                _state.update {
+                    it.copy(
+                        catalogState = it.catalogState.copy(error = null)
+                    )
+                }
+                // Retry loading types if they failed
+                if (_state.value.catalogState.catalogTypes.isEmpty()) {
+                    loadCatalogTypes()
                 }
             }
         }
@@ -1810,6 +1842,234 @@ class BillingViewModel @Inject constructor(
                     }
                 }
             )
+        }
+    }
+
+    // Catalog methods
+
+    private fun openCatalogDialog() {
+        _state.update {
+            it.copy(
+                catalogState = CatalogDialogState(
+                    isVisible = true,
+                    isLoadingTypes = true
+                )
+            )
+        }
+        loadCatalogTypes()
+    }
+
+    private fun loadCatalogTypes() {
+        viewModelScope.launch {
+            catalogRepository.getCatalogTypes().collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(isLoadingTypes = true)
+                            )
+                        }
+                    }
+                    is Resource.Success -> {
+                        val types = result.data ?: emptyList()
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(
+                                    isLoadingTypes = false,
+                                    catalogTypes = types,
+                                    error = null
+                                )
+                            )
+                        }
+                        // Auto-select first category if available
+                        if (types.isNotEmpty() && _state.value.catalogState.selectedCatalogTypeId == null) {
+                            selectCatalogCategory(types.first().catalogTypeId)
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(
+                                    isLoadingTypes = false,
+                                    error = result.message
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun selectCatalogCategory(catalogTypeId: Int) {
+        _state.update {
+            it.copy(
+                catalogState = it.catalogState.copy(
+                    selectedCatalogTypeId = catalogTypeId,
+                    isLoadingItems = true,
+                    catalogItems = emptyList()
+                )
+            )
+        }
+        loadCatalogItems(catalogTypeId, _state.value.catalogState.selectedLetter)
+    }
+
+    private fun selectCatalogLetter(letter: Char) {
+        _state.update {
+            it.copy(
+                catalogState = it.catalogState.copy(
+                    selectedLetter = letter,
+                    isLoadingItems = true,
+                    catalogItems = emptyList()
+                )
+            )
+        }
+        val categoryId = _state.value.catalogState.selectedCatalogTypeId
+        if (categoryId != null) {
+            loadCatalogItems(categoryId, letter)
+        }
+    }
+
+    private fun loadCatalogItems(catalogTypeId: Int, letter: Char) {
+        viewModelScope.launch {
+            val filterType = "FirstLetter"
+            val letterParam = letter.toString()
+
+            catalogRepository.getCatalogItems(
+                catalogTypeId = catalogTypeId,
+                filterType = filterType,
+                letter = letterParam
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(isLoadingItems = true)
+                            )
+                        }
+                    }
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(
+                                    isLoadingItems = false,
+                                    catalogItems = result.data ?: emptyList(),
+                                    error = null
+                                )
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        _state.update {
+                            it.copy(
+                                catalogState = it.catalogState.copy(
+                                    isLoadingItems = false,
+                                    error = result.message
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun addCatalogItemToTransaction(itemPosId: String) {
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    catalogState = it.catalogState.copy(isAddingItem = true, error = null)
+                )
+            }
+
+            val currentTransactionCode = _state.value.transactionCode
+            val selectedCustomer = _state.value.selectedCustomer
+
+            var sessionId: String? = null
+            var workstationId: String? = null
+
+            if (currentTransactionCode.isBlank()) {
+                sessionId = sessionManager.getSessionId().first()
+                workstationId = sessionManager.getStationId().first()
+
+                if (sessionId.isNullOrBlank() || workstationId.isNullOrBlank()) {
+                    _state.update {
+                        it.copy(
+                            catalogState = it.catalogState.copy(
+                                isAddingItem = false,
+                                error = "No hay sesión activa"
+                            )
+                        )
+                    }
+                    return@launch
+                }
+            }
+
+            val customerId = if (currentTransactionCode.isBlank()) selectedCustomer?.partyId?.toString() else null
+            val customerIdType = if (currentTransactionCode.isBlank()) selectedCustomer?.identificationType else null
+            val customerName = if (currentTransactionCode.isBlank()) selectedCustomer?.name else null
+
+            // Check if current user has permission to authorize restricted materials
+            val permissions = _state.value.userPermissions
+            val canAuthorizeRestrictedMaterials = permissions?.hasAccess(UserPermissions.PROCESS_AUTORIZAR_MATERIAL_RESTRINGIDO) ?: false
+            val userCode = if (canAuthorizeRestrictedMaterials) sessionManager.getUserCode().first() else null
+
+            billingRepository.addMaterial(
+                transactionId = currentTransactionCode,
+                itemPosId = itemPosId,
+                quantity = 1.0,
+                partyAffiliationTypeCode = selectedCustomer?.affiliateType,
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                isAuthorized = canAuthorizeRestrictedMaterials,
+                authorizedBy = userCode,
+                economicActivityId = _state.value.selectedEconomicActivityCode,
+                transactionTypeCode = _state.value.documentType
+            ).collect { result ->
+                when (result) {
+                    is Resource.Loading -> { }
+                    is Resource.Success -> {
+                        val addResult = result.data!!
+                        // Save transactionId to local database if new transaction was created
+                        if (addResult.transactionId != null && _state.value.transactionCode.isBlank()) {
+                            billingRepository.saveActiveTransactionId(addResult.transactionId)
+                        }
+                        _state.update {
+                            it.copy(
+                                catalogState = CatalogDialogState(), // Close dialog
+                                transactionCode = addResult.transactionId ?: it.transactionCode,
+                                isTransactionCreated = addResult.transactionId != null || it.isTransactionCreated,
+                                invoiceData = addResult.invoiceData
+                            )
+                        }
+                    }
+                    is Resource.Error -> {
+                        if (result.errorCode == "ITEM_REQUIRES_AUTHORIZATION") {
+                            // Close catalog dialog and show authorization dialog
+                            _state.update {
+                                it.copy(catalogState = CatalogDialogState())
+                            }
+                            handleMaterialAuthorizationRequest(
+                                itemPosId = itemPosId,
+                                quantity = 1.0,
+                                partyAffiliationTypeCode = selectedCustomer?.affiliateType
+                            )
+                        } else {
+                            _state.update {
+                                it.copy(
+                                    catalogState = it.catalogState.copy(
+                                        isAddingItem = false,
+                                        error = result.message
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
