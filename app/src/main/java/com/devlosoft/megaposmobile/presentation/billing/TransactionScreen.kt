@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,6 +78,7 @@ import com.devlosoft.megaposmobile.presentation.shared.components.ConfirmDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.ErrorDialog
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.presentation.shared.components.MenuItem
+import com.devlosoft.megaposmobile.presentation.billing.components.CatalogDialog
 import com.devlosoft.megaposmobile.presentation.billing.components.PackagingDialog
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
@@ -290,6 +294,18 @@ fun TransactionScreen(
         )
     }
 
+    // Catalog Dialog
+    if (state.catalogState.isVisible) {
+        CatalogDialog(
+            state = state.catalogState,
+            onCategorySelected = { viewModel.onEvent(BillingEvent.SelectCatalogCategory(it)) },
+            onLetterSelected = { viewModel.onEvent(BillingEvent.SelectCatalogLetter(it)) },
+            onItemSelected = { item -> viewModel.onEvent(BillingEvent.AddCatalogItem(item.itemPosId)) },
+            onDismiss = { viewModel.onEvent(BillingEvent.DismissCatalogDialog) },
+            onDismissError = { viewModel.onEvent(BillingEvent.DismissCatalogError) }
+        )
+    }
+
     // Handle navigation after successful pause
     LaunchedEffect(state.shouldNavigateAfterPause) {
         if (state.shouldNavigateAfterPause) {
@@ -306,6 +322,7 @@ fun TransactionScreen(
         }
     }
 
+    @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
     Scaffold(
         modifier = Modifier.onPreviewKeyEvent { keyEvent ->
             // Block ALL key events while adding article - don't process, just consume
@@ -320,13 +337,14 @@ fun TransactionScreen(
                 viewModel.onEvent(BillingEvent.ScannerInput(barcode))
             }
             scannerHandler.shouldConsumeEvent(keyEvent)
-        }
-    ) { paddingValues ->
+        },
+        contentWindowInsets = WindowInsets(0)
+    ) { _ ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(Color.White)
+                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             // Header
             AppHeader(
@@ -446,7 +464,7 @@ fun TransactionScreen(
                             text = { Text("Mostrar Catálogo") },
                             onClick = {
                                 showTransactionMenu = false
-                                viewModel.onEvent(BillingEvent.ShowTodoDialog("Mostrar Catálogo\nItem seleccionado: ${selectedItemId ?: "Ninguno"}"))
+                                viewModel.onEvent(BillingEvent.OpenCatalogDialog)
                             }
                         )
                     }

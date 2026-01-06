@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -152,7 +155,10 @@ fun BillingScreen(
         )
     }
 
-    Scaffold { paddingValues ->
+    @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
+    Scaffold(
+        contentWindowInsets = WindowInsets(0)
+    ) { _ ->
         Box(modifier = Modifier.fillMaxSize()) {
             // Loading overlay for recovery check
             if (state.isCheckingRecovery) {
@@ -183,8 +189,8 @@ fun BillingScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .background(Color.White)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
             ) {
                 // Header
                 AppHeader(
@@ -600,6 +606,15 @@ fun EconomicActivityDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, Color.Gray),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Salir", color = Color.Black)
+                    }
+
                     Button(
                         onClick = onConfirm,
                         modifier = Modifier.weight(1f),
@@ -611,15 +626,6 @@ fun EconomicActivityDialog(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("Seleccionar")
-                    }
-
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, Color.Gray),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Salir", color = Color.Black)
                     }
                 }
             }

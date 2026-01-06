@@ -6,6 +6,8 @@ import com.devlosoft.megaposmobile.data.remote.api.CustomerApi
 import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
 import com.devlosoft.megaposmobile.data.remote.dto.AddMaterialRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.MaterialDetailsDto
+import com.devlosoft.megaposmobile.data.remote.dto.TransactionDetailsDto
 import com.devlosoft.megaposmobile.data.remote.dto.ChangeQuantityRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.ErrorResponseDto
@@ -71,22 +73,30 @@ class BillingRepositoryImpl @Inject constructor(
         customerIdType: String?,
         customerName: String?,
         isAuthorized: Boolean,
-        authorizedBy: String?
+        authorizedBy: String?,
+        economicActivityId: String?,
+        transactionTypeCode: String?
     ): Flow<Resource<AddMaterialResult>> = flow {
         emit(Resource.Loading())
         try {
             val request = AddMaterialRequestDto(
                 transactionId = transactionId,
-                itemPosId = itemPosId,
-                quantity = quantity,
-                partyAffiliationTypeCode = partyAffiliationTypeCode,
                 sessionId = sessionId,
                 workstationId = workstationId,
-                customerId = customerId,
-                customerIdType = customerIdType,
-                customerName = customerName,
-                isAuthorized = isAuthorized,
-                authorizedBy = authorizedBy
+                material = MaterialDetailsDto(
+                    itemPosId = itemPosId,
+                    quantity = quantity,
+                    partyAffiliationTypeCode = partyAffiliationTypeCode,
+                    isAuthorized = isAuthorized,
+                    authorizedBy = authorizedBy
+                ),
+                transaction = TransactionDetailsDto(
+                    customerId = customerId,
+                    customerIdType = customerIdType,
+                    customerName = customerName,
+                    economicActivityId = economicActivityId,
+                    transactionTypeCode = transactionTypeCode
+                )
             )
             val response = transactionApi.addMaterial(request)
             if (response.isSuccessful) {

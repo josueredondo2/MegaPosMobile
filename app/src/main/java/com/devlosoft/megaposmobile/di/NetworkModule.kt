@@ -11,6 +11,7 @@ import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.api.PaymentApi
 import com.devlosoft.megaposmobile.data.remote.api.SystemApi
 import com.devlosoft.megaposmobile.data.remote.api.TransactionApi
+import com.devlosoft.megaposmobile.data.remote.api.CatalogApi
 import com.devlosoft.megaposmobile.data.remote.interceptor.AuthInterceptor
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -117,6 +118,12 @@ object NetworkModule {
     @Singleton
     fun provideSystemApi(retrofit: Retrofit): SystemApi {
         return retrofit.create(SystemApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideCatalogApi(retrofit: Retrofit): CatalogApi {
+        return retrofit.create(CatalogApi::class.java)
     }
 
     @Provides

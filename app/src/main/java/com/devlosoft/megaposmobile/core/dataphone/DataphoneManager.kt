@@ -86,6 +86,9 @@ class DataphoneManager @Inject constructor(
         Log.d(TAG, "Simulating payment for amount: $amount")
         delay(500)  // Simular tiempo de respuesta
 
+        // Formatear monto como lo hace el PAX real: "CRC2,750.00"
+        val formattedAmount = String.format("%,.2f", amount.toDouble())
+
         return Result.success(
             DataphonePaymentResult(
                 success = true,
@@ -100,10 +103,10 @@ class DataphoneManager @Inject constructor(
                 stan = String.format("%06d", (1..999999).random()),
                 ticket = "SIMULACION DE PAGO\n" +
                         "==================\n" +
-                        "MONTO: CRC ${amount}.00\n" +
+                        "MONTO: CRC $formattedAmount\n" +
                         "VALIDO SIN FIRMA\n" +
                         "==================",
-                totalAmount = "CRC${amount * 100}.00",
+                totalAmount = "CRC$formattedAmount",
                 errorMessage = null
             )
         )

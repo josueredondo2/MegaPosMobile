@@ -26,7 +26,9 @@ interface BillingRepository {
         customerIdType: String? = null,
         customerName: String? = null,
         isAuthorized: Boolean = false,
-        authorizedBy: String? = null
+        authorizedBy: String? = null,
+        economicActivityId: String? = null,
+        transactionTypeCode: String? = null
     ): Flow<Resource<AddMaterialResult>>
     suspend fun finalizeTransaction(
         sessionId: String,

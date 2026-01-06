@@ -3,6 +3,9 @@ package com.devlosoft.megaposmobile.presentation.shared.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
@@ -66,42 +69,51 @@ fun AppHeader(
 ) {
     val dimensions = LocalDimensions.current
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .background(MegaSuperRed)
-            .height(dimensions.headerHeight)
-            .padding(horizontal = dimensions.paddingMedium),
-        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Logo (siempre presente)
-            Image(
-                painter = painterResource(id = R.drawable.logo_megasuper),
-                contentDescription = "MegaSuper Logo",
-                modifier = Modifier.height(dimensions.headerHeight * 0.6f),
-                contentScale = ContentScale.FillHeight
-            )
+        // Spacer para la barra de estado - extiende el fondo rojo hasta arriba
+        Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
-            // Contenido derecho según el tipo
-            when (endContent) {
-                is HeaderEndContent.UserMenu -> {
-                    UserMenuSection(
-                        items = endContent.items,
-                        expanded = endContent.expanded,
-                        onExpandedChange = endContent.onExpandedChange,
-                        enabled = endContent.enabled
-                    )
-                }
-                is HeaderEndContent.StaticUserIcon -> {
-                    StaticUserIconSection()
-                }
-                is HeaderEndContent.VersionText -> {
-                    VersionTextSection(version = endContent.version)
+        // Contenido del header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimensions.headerHeight)
+                .padding(horizontal = dimensions.paddingMedium),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Logo (siempre presente)
+                Image(
+                    painter = painterResource(id = R.drawable.logo_megasuper),
+                    contentDescription = "MegaSuper Logo",
+                    modifier = Modifier.height(dimensions.headerHeight * 0.6f),
+                    contentScale = ContentScale.FillHeight
+                )
+
+                // Contenido derecho según el tipo
+                when (endContent) {
+                    is HeaderEndContent.UserMenu -> {
+                        UserMenuSection(
+                            items = endContent.items,
+                            expanded = endContent.expanded,
+                            onExpandedChange = endContent.onExpandedChange,
+                            enabled = endContent.enabled
+                        )
+                    }
+                    is HeaderEndContent.StaticUserIcon -> {
+                        StaticUserIconSection()
+                    }
+                    is HeaderEndContent.VersionText -> {
+                        VersionTextSection(version = endContent.version)
+                    }
                 }
             }
         }

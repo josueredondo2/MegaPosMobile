@@ -5,6 +5,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivitySearchItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
 import com.devlosoft.megaposmobile.domain.model.UserPermissions
+import com.devlosoft.megaposmobile.presentation.billing.state.CatalogDialogState
 import com.devlosoft.megaposmobile.presentation.billing.state.PackagingDialogState
 import com.devlosoft.megaposmobile.presentation.billing.state.PrintState
 import com.devlosoft.megaposmobile.presentation.billing.state.TransactionControlState
@@ -36,6 +37,7 @@ data class BillingState(
     val activityCurrentPage: Int = 1,
     val activityHasNextPage: Boolean = false,
     val isLoadingMoreActivities: Boolean = false,
+    val selectedEconomicActivityCode: String? = null,  // Economic activity code for addMaterial
 
     // Transaction state
     val transactionCode: String = "",
@@ -95,7 +97,10 @@ data class BillingState(
     val printState: PrintState = PrintState(),
 
     // Packaging dialog state - using sub-state
-    val packagingState: PackagingDialogState = PackagingDialogState()
+    val packagingState: PackagingDialogState = PackagingDialogState(),
+
+    // Catalog dialog state - using sub-state
+    val catalogState: CatalogDialogState = CatalogDialogState()
 ) {
     // Convenience accessors for backward compatibility with UI
     // Transaction control
