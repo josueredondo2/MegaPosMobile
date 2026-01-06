@@ -109,6 +109,7 @@ class PaxBacDriver : DataphoneDriver {
     override fun parseResponse(jsonResponse: String): DataphonePaymentResult {
         return try {
             val paxResponse = gson.fromJson(jsonResponse, PaxResponseDto::class.java)
+            val cleanedTicket = cleanPaxTicket(paxResponse.ticket)
 
             DataphonePaymentResult(
                 success = paxResponse.respcode == "00",
@@ -121,7 +122,7 @@ class PaxBacDriver : DataphoneDriver {
                 receiptNumber = paxResponse.recibo,
                 rrn = paxResponse.rrn?.trim(),
                 stan = paxResponse.stan,
-                ticket = paxResponse.ticket,
+                ticket = cleanedTicket,
                 totalAmount = paxResponse.totalAmount,
                 errorMessage = if (paxResponse.respcode != "00")
                     getResponseMessage(paxResponse.respcode) else null
@@ -154,6 +155,7 @@ class PaxBacDriver : DataphoneDriver {
         return try {
             val paxResponse = gson.fromJson(jsonResponse, PaxCloseResponseDto::class.java)
             val ticketData = parseCloseTicket(paxResponse.ticket)
+            val cleanedTicket = cleanPaxTicket(paxResponse.ticket)
 
             DataphoneCloseResult(
                 success = true,
@@ -164,7 +166,7 @@ class PaxBacDriver : DataphoneDriver {
                 reversalsCount = 0,
                 reversalsTotal = 0.0,
                 netTotal = ticketData.salesTotal,
-                ticket = paxResponse.ticket,
+                ticket = cleanedTicket,
                 errorMessage = null
             )
         } catch (e: Exception) {
@@ -181,6 +183,40 @@ class PaxBacDriver : DataphoneDriver {
                 errorMessage = "Error al parsear respuesta de cierre: ${e.message}"
             )
         }
+    }
+
+    /**
+     * Limpia el ticket del PAX removiendo los prefijos 's' que usa el datáfono.
+     * El PAX envía cada línea con el formato: \ns TEXTO
+     * Esta función remueve esas 's' para que el ticket sea legible.
+     *
+     * @param ticket Ticket original del PAX
+     * @return Ticket limpio sin los prefijos 's'
+     */
+    private fun cleanPaxTicket(ticket: String?): String {
+        if (ticket.isNullOrEmpty()) return ""
+
+        // El ticket viene con formato: \ns TEXTO o \ns\ns TEXTO
+        // Primero normalizamos los saltos de línea escapados
+        val normalized = ticket.replace("\\n", "\n")
+
+        // Removemos las 's' que están al inicio de cada línea (después de \n o al inicio)
+        // El patrón es: inicio de línea seguido de 's' seguido de espacio o fin de línea
+        return normalized
+            .split("\n")
+            .joinToString("\n") { line ->
+                // Remover 's' al inicio de la línea si está seguida de espacio o es la línea completa
+                val trimmedLine = line.trim()
+                if (trimmedLine == "s" || trimmedLine.isEmpty()) {
+                    ""
+                } else if (trimmedLine.startsWith("s ")) {
+                    trimmedLine.substring(2)
+                } else {
+                    trimmedLine
+                }
+            }
+            .replace(Regex("\n{3,}"), "\n\n") // Reducir múltiples líneas vacías
+            .trim()
     }
 
     /**
