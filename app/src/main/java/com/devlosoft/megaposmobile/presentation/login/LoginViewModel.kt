@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
+import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.domain.usecase.CheckVersionUseCase
 import com.devlosoft.megaposmobile.domain.usecase.LoginUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
-    private val checkVersionUseCase: CheckVersionUseCase
+    private val checkVersionUseCase: CheckVersionUseCase,
+    private val stationStatus: StationStatus
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginState())
@@ -87,6 +89,10 @@ class LoginViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = true, error = null) }
                 }
                 is Resource.Success -> {
+                    // Set workstation state to closed on successful login
+                    // This forces the user to open a new session
+                    stationStatus.close()
+
                     _state.update {
                         it.copy(
                             isLoading = false,
