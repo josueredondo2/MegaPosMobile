@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -319,6 +322,7 @@ fun TransactionScreen(
         }
     }
 
+    @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
     Scaffold(
         modifier = Modifier.onPreviewKeyEvent { keyEvent ->
             // Block ALL key events while adding article - don't process, just consume
@@ -333,13 +337,14 @@ fun TransactionScreen(
                 viewModel.onEvent(BillingEvent.ScannerInput(barcode))
             }
             scannerHandler.shouldConsumeEvent(keyEvent)
-        }
-    ) { paddingValues ->
+        },
+        contentWindowInsets = WindowInsets(0)
+    ) { _ ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(Color.White)
+                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             // Header
             AppHeader(

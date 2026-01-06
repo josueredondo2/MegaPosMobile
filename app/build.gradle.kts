@@ -13,12 +13,21 @@ android {
     namespace = "com.devlosoft.megaposmobile"
     compileSdk = 36
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../megapos-release.jks")
+            storePassword = "FMvVUoRsSXz3udLo24vF"
+            keyAlias = "megapos"
+            keyPassword = "FMvVUoRsSXz3udLo24vF"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.devlosoft.megaposmobile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0.0"
+        versionCode = 4
+        versionName = "1.0.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -33,12 +42,13 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"http://YOUR_SERVER_IP:5166/pos-api/v1/\"")
-            buildConfigField("String", "FEL_API_BASE_URL", "\"http://YOUR_SERVER_IP:5166/fel-api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5166/pos-api/v1/\"")
+            buildConfigField("String", "FEL_API_BASE_URL", "\"http://10.0.2.2:5166/fel-api/v1/\"")
             buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
         }
     }
