@@ -10,3 +10,5 @@ local.properties
 
 # IDE
 .idea/
+/megapos-release.jks
+/.claude/agents.toml
