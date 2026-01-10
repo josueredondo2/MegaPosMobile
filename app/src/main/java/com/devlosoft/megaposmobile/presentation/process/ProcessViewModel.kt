@@ -65,7 +65,17 @@ class ProcessViewModel @Inject constructor(
     private val _state = MutableStateFlow(ProcessState())
     val state: StateFlow<ProcessState> = _state.asStateFlow()
 
+    init {
+        Log.d(TAG, "ProcessViewModel created - instance: ${this.hashCode()}")
+    }
+
+    override fun onCleared() {
+        Log.d(TAG, "ProcessViewModel onCleared - instance: ${this.hashCode()}, current status: ${_state.value.status}")
+        super.onCleared()
+    }
+
     fun startProcess(processType: String) {
+        Log.d(TAG, "startProcess called - processType: $processType, current status: ${_state.value.status}, instance: ${this.hashCode()}")
         when (processType) {
             ProcessTypes.OPEN_TERMINAL -> openTerminal()
             ProcessTypes.CLOSE_TERMINAL -> closeTerminal()

@@ -19,5 +19,6 @@ data class ServerConfigEntity(
     val printerModel: String = "ZEBRA_ZQ511",
     val datafonoProvider: String = "BAC",
     val dataphoneTerminalId: String = "",
-    val useHttps: Boolean = false
+    val useHttps: Boolean = false,
+    val readerBrand: String = "ZEBRA"
 )

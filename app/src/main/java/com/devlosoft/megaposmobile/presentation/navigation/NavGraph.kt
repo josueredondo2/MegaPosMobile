@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.navigation
 
+import android.util.Log
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
@@ -96,10 +97,23 @@ fun NavGraph(
 
         composable<Process> { backStackEntry ->
             val args = backStackEntry.toRoute<Process>()
+            Log.d("NavGraph", "Process composable rendered - processType: ${args.processType}")
+
             ProcessScreen(
                 processType = args.processType,
                 onBack = {
-                    navController.popBackStack()
+                    Log.d("NavGraph", "=== onBack called for Process screen ===")
+                    Log.d("NavGraph", "processType: ${args.processType}")
+                    Log.d("NavGraph", "Current destination: ${navController.currentDestination?.route}")
+                    try {
+                        val popped = navController.popBackStack()
+                        Log.d("NavGraph", "popBackStack result: $popped")
+                        if (!popped) {
+                            Log.w("NavGraph", "popBackStack returned false - backstack might be empty or already navigating")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("NavGraph", "ERROR during popBackStack for Process", e)
+                    }
                 }
             )
         }

@@ -1,4 +1,4 @@
-package com.devlosoft.megaposmobile.core.scanner
+package com.devlosoft.megaposmobile.core.scanner.drivers
 
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.Key
@@ -6,52 +6,33 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.type
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.devlosoft.megaposmobile.core.scanner.ScannerDriver
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 
 /**
- * Handles barcode scanner input from Zebra hardware scanners.
+ * Scanner driver for Zebra hardware scanners.
  *
  * Scanners configured in "Keyboard Wedge" mode send characters as key events.
- * This handler accumulates rapid keystrokes and detects barcode completion on ENTER.
+ * This driver accumulates rapid keystrokes and detects barcode completion on ENTER.
  *
  * Supported devices:
  * - Zebra handhelds (DataWedge in Keystroke Output mode)
- *
- * @deprecated Use [ScannerManager] and [ScannerDriver] instead.
- * This class is kept for backward compatibility.
- * @see com.devlosoft.megaposmobile.core.scanner.ScannerManager
- * @see com.devlosoft.megaposmobile.core.scanner.drivers.ZebraScannerDriver
  */
-@Deprecated(
-    message = "Use ScannerManager and ScannerDriver instead",
-    replaceWith = ReplaceWith(
-        "ScannerManager",
-        "com.devlosoft.megaposmobile.core.scanner.ScannerManager"
-    )
-)
-@Singleton
-class BarcodeScannerHandler @Inject constructor() {
+class ZebraScannerDriver : ScannerDriver {
 
     companion object {
         private const val MAX_KEY_INTERVAL_MS = 100L // Max time between scanner keystrokes
         private const val MIN_BARCODE_LENGTH = 4     // Minimum valid barcode length
-        private const val SCAN_COMPLETE_TIMEOUT_MS = 150L // Time to wait after last digit to consider scan complete
+        private const val SCAN_COMPLETE_TIMEOUT_MS = 150L // Time to wait after last digit
     }
 
     private val buffer = StringBuilder()
     private var lastKeyTime = 0L
     private var lastEventWasConsumed = false
 
-    /**
-     * Process a key event and return the completed barcode if detected.
-     * Uses timing to distinguish between scanner (fast) and manual input (slow).
-     * Scanner always has priority.
-     *
-     * @param keyEvent The Compose KeyEvent to process
-     * @return The complete barcode string if ENTER was pressed, null otherwise
-     */
-    fun processKeyEvent(keyEvent: androidx.compose.ui.input.key.KeyEvent): String? {
+    override fun getBrand(): ReaderBrand = ReaderBrand.ZEBRA
+
+    override fun processKeyEvent(keyEvent: androidx.compose.ui.input.key.KeyEvent): String? {
         val currentTime = System.currentTimeMillis()
         val nativeKeyCode = keyEvent.key.nativeKeyCode
         val isKeyDown = keyEvent.type == KeyEventType.KeyDown
@@ -118,18 +99,11 @@ class BarcodeScannerHandler @Inject constructor() {
         }
     }
 
-    /**
-     * Check if we should consume this key event (prevent it from reaching other handlers).
-     * IMPORTANT: Call this AFTER processKeyEvent for correct behavior.
-     */
-    fun shouldConsumeEvent(keyEvent: androidx.compose.ui.input.key.KeyEvent): Boolean {
+    override fun shouldConsumeEvent(keyEvent: androidx.compose.ui.input.key.KeyEvent): Boolean {
         if (keyEvent.type != KeyEventType.KeyDown) return false
         return lastEventWasConsumed
     }
 
-    /**
-     * Get current buffer content and clear it.
-     */
     private fun getAndClearBuffer(): String {
         val result = buffer.toString()
         buffer.clear()
@@ -137,16 +111,10 @@ class BarcodeScannerHandler @Inject constructor() {
         return result
     }
 
-    /**
-     * Clear the buffer (e.g., on screen exit or timeout).
-     */
-    fun reset() {
+    override fun reset() {
         buffer.clear()
         lastKeyTime = 0L
     }
 
-    /**
-     * Check if buffer is empty.
-     */
-    fun isEmpty(): Boolean = buffer.isEmpty()
+    override fun isEmpty(): Boolean = buffer.isEmpty()
 }

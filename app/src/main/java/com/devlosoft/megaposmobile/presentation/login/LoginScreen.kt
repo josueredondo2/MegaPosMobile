@@ -86,7 +86,12 @@ fun LoginScreen(
 
     @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+            )
+        },
         contentWindowInsets = WindowInsets(0)
     ) { _ ->
         Column(

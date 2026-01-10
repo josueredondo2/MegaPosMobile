@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.process
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,8 +69,14 @@ fun ProcessScreen(
     val state by viewModel.state.collectAsState()
     val dimensions = LocalDimensions.current
 
+    // Track if navigation is in progress to prevent multiple clicks
+    var isNavigating by remember { mutableStateOf(false) }
+
+    Log.d("ProcessScreen", "ProcessScreen composed - processType: $processType, status: ${state.status}, isNavigating: $isNavigating")
+
     // Disable back button - navigation only through screen buttons
     BackHandler(enabled = true) {
+        Log.d("ProcessScreen", "Hardware back button pressed - blocked")
         // Do nothing - block back navigation
     }
 
@@ -115,16 +125,48 @@ fun ProcessScreen(
                         is ProcessStatus.Success -> {
                             SuccessContent(
                                 message = status.message,
-                                onBackClick = onSuccess ?: onBack,
-                                buttonText = successButtonText
+                                onBackClick = {
+                                    if (!isNavigating) {
+                                        isNavigating = true
+                                        Log.d("ProcessScreen", "=== SUCCESS BACK BUTTON PRESSED ===")
+                                        Log.d("ProcessScreen", "processType: $processType")
+                                        Log.d("ProcessScreen", "current status: ${state.status}")
+                                        try {
+                                            (onSuccess ?: onBack).invoke()
+                                        } catch (e: Exception) {
+                                            Log.e("ProcessScreen", "ERROR during success navigation", e)
+                                            isNavigating = false
+                                        }
+                                    } else {
+                                        Log.w("ProcessScreen", "Navigation already in progress, ignoring success click")
+                                    }
+                                },
+                                buttonText = successButtonText,
+                                isEnabled = !isNavigating
                             )
                         }
                         is ProcessStatus.Error -> {
                             ErrorContent(
                                 message = status.message,
                                 onRetryClick = onRetry,
-                                onBackClick = onBack,
-                                backButtonText = errorBackButtonText
+                                onBackClick = {
+                                    if (!isNavigating) {
+                                        isNavigating = true
+                                        Log.d("ProcessScreen", "=== ERROR BACK BUTTON PRESSED ===")
+                                        Log.d("ProcessScreen", "processType: $processType")
+                                        Log.d("ProcessScreen", "current status: ${state.status}")
+                                        try {
+                                            onBack.invoke()
+                                        } catch (e: Exception) {
+                                            Log.e("ProcessScreen", "ERROR during error navigation", e)
+                                            isNavigating = false
+                                        }
+                                    } else {
+                                        Log.w("ProcessScreen", "Navigation already in progress, ignoring error click")
+                                    }
+                                },
+                                backButtonText = errorBackButtonText,
+                                isEnabled = !isNavigating
                             )
                         }
                         is ProcessStatus.PrintError -> {
@@ -182,7 +224,8 @@ private fun LoadingContent(message: String) {
 private fun SuccessContent(
     message: String,
     onBackClick: () -> Unit,
-    buttonText: String = "Volver a menu"
+    buttonText: String = "Volver a menu",
+    isEnabled: Boolean = true
 ) {
     val dimensions = LocalDimensions.current
 
@@ -214,6 +257,7 @@ private fun SuccessContent(
         // Action button
         Button(
             onClick = onBackClick,
+            enabled = isEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensions.buttonHeight),
@@ -237,7 +281,8 @@ private fun ErrorContent(
     message: String,
     onRetryClick: (() -> Unit)? = null,
     onBackClick: () -> Unit,
-    backButtonText: String = "Volver a menu"
+    backButtonText: String = "Volver a menu",
+    isEnabled: Boolean = true
 ) {
     val dimensions = LocalDimensions.current
 
@@ -278,6 +323,7 @@ private fun ErrorContent(
         if (onRetryClick != null) {
             Button(
                 onClick = onRetryClick,
+                enabled = isEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(dimensions.buttonHeight),
@@ -300,6 +346,7 @@ private fun ErrorContent(
         // Back button
         Button(
             onClick = onBackClick,
+            enabled = isEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dimensions.buttonHeight),

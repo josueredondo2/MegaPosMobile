@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.advancedoptions
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 
 data class AdvancedOptionsState(
     // Configuration fields
@@ -13,6 +14,9 @@ data class AdvancedOptionsState(
 
     // Printer model
     val printerModel: PrinterModel = PrinterModel.ZEBRA_ZQ511,
+
+    // Reader brand (scanner device)
+    val readerBrand: ReaderBrand = ReaderBrand.ZEBRA,
 
     // Bluetooth printer
     val selectedBluetoothDevice: BluetoothPrinterDevice? = null,
