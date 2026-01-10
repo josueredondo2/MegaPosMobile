@@ -1,11 +1,13 @@
 package com.devlosoft.megaposmobile.di
 
+import com.devlosoft.megaposmobile.data.repository.AuditRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.AuthRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.BillingRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.CashierStationRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.PaymentRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.SystemRepositoryImpl
 import com.devlosoft.megaposmobile.data.repository.CatalogRepositoryImpl
+import com.devlosoft.megaposmobile.domain.repository.AuditRepository
 import com.devlosoft.megaposmobile.domain.repository.AuthRepository
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.repository.CashierStationRepository
@@ -45,6 +47,12 @@ abstract class RepositoryModule {
     abstract fun bindPaymentRepository(
         paymentRepositoryImpl: PaymentRepositoryImpl
     ): PaymentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAuditRepository(
+        auditRepositoryImpl: AuditRepositoryImpl
+    ): AuditRepository
 
     @Binds
     @Singleton

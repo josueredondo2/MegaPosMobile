@@ -122,14 +122,6 @@ object LocalPrintTemplates {
             appendLine(formatLabelValue("TOTAL NETO:", formattedNetTotal))
             appendLine(SEPARATOR)
 
-            // Voucher del PAX (detalle del cierre)
-            if (!voucher.isNullOrBlank()) {
-                appendLine()
-                appendLine(centerText("--- Detalle del Cierre ---"))
-                appendLine()
-                appendLine(voucher)
-            }
-
             appendLine()
             appendLine()
         }

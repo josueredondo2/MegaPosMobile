@@ -13,6 +13,7 @@ import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.dto.DataphoneDataDto
 import com.devlosoft.megaposmobile.data.remote.dto.PaxCloseResponseDto
+import com.devlosoft.megaposmobile.domain.repository.AuditRepository
 import com.devlosoft.megaposmobile.domain.repository.BillingRepository
 import com.devlosoft.megaposmobile.domain.repository.PaymentRepository
 import com.devlosoft.megaposmobile.domain.usecase.CloseTerminalUseCase
@@ -53,7 +54,8 @@ class ProcessViewModel @Inject constructor(
     private val dataphoneState: DataphoneState,
     private val serverConfigDao: ServerConfigDao,
     private val paymentRepository: PaymentRepository,
-    private val printerManager: PrinterManager
+    private val printerManager: PrinterManager,
+    private val auditRepository: AuditRepository
 ) : ViewModel() {
 
     companion object {
@@ -94,6 +96,13 @@ class ProcessViewModel @Inject constructor(
                 )
             }
 
+            // Log audit before calling dataphone
+            auditRepository.log(
+                action = "ADD",
+                detail = "Iniciando pago datáfono por $formattedAmount - Trans: $transactionId",
+                transactionId = transactionId
+            )
+
             // Call dataphone for real payment
             val paymentResult = dataphoneManager.processPayment(amount.toLong())
 
@@ -126,7 +135,7 @@ class ProcessViewModel @Inject constructor(
                     // Create DTO with dataphone data
                     val dataphoneData = DataphoneDataDto(
                         authorizationCode = dataphoneResult.authorizationCode,
-                        panmasked = dataphoneResult.panmasked,
+                        panmasked = dataphoneResult.panmasked?.replace("*", ""),
                         cardholder = dataphoneResult.cardholder,
                         terminalid = dataphoneResult.terminalid ?: "",
                         receiptNumber = dataphoneResult.receiptNumber,
@@ -401,6 +410,12 @@ class ProcessViewModel @Inject constructor(
                     }
                     return@launch
                 }
+
+                // Log audit before calling dataphone close
+                auditRepository.log(
+                    action = "ADD",
+                    detail = "Iniciando cierre de datáfono"
+                )
 
                 // Step 2: Call PAX to execute the close
                 val dataphoneResultWrapper = dataphoneManager.closeDataphone()
