@@ -571,23 +571,17 @@ class BillingViewModel @Inject constructor(
                         if (response?.result == 0) {
                             // Validation successful
                             val activities = response.activities ?: emptyList()
-                            if (activities.isNotEmpty()) {
-                                // Sort activities: type "P" first, then others
-                                val sortedActivities = activities.sortedByDescending { it.type == "P" }
-                                // Show activity selection dialog with first item selected by default
-                                _state.update {
-                                    it.copy(
-                                        isValidatingClient = false,
-                                        showActivityDialog = true,
-                                        economicActivities = sortedActivities,
-                                        selectedActivity = sortedActivities.firstOrNull(),
-                                        activitySearchQuery = ""
-                                    )
-                                }
-                            } else {
-                                // No activities, proceed directly
-                                _state.update { it.copy(isValidatingClient = false) }
-                                proceedWithTransaction(customerToUse)
+                            // Sort activities: type "P" first, then others
+                            val sortedActivities = activities.sortedByDescending { it.type == "P" }
+                            // Show activity selection dialog (even if empty, user can search)
+                            _state.update {
+                                it.copy(
+                                    isValidatingClient = false,
+                                    showActivityDialog = true,
+                                    economicActivities = sortedActivities,
+                                    selectedActivity = sortedActivities.firstOrNull(),
+                                    activitySearchQuery = ""
+                                )
                             }
                         } else {
                             // Validation failed, show error popup with stackTrace
