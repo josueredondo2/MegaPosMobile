@@ -1,6 +1,7 @@
 package com.devlosoft.megaposmobile.core.scanner
 
 import android.content.Context
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.KeyEvent
 import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 
@@ -24,6 +25,30 @@ interface ScannerDriver {
      * If true, caller should use registerBroadcastReceiver() instead of processKeyEvent().
      */
     fun usesBroadcastReceiver(): Boolean = false
+
+    /**
+     * Whether this driver requires persistent focus on the article TextField.
+     * PAX uses this mode - characters go directly to TextField, Enter submits.
+     */
+    fun requiresPersistentFocus(): Boolean = false
+
+    /**
+     * Set the FocusRequester for the article TextField.
+     * Call this when the screen initializes.
+     */
+    fun setFocusRequester(focusRequester: FocusRequester) {}
+
+    /**
+     * Called when the article TextField loses focus.
+     * The driver decides whether to restore focus.
+     */
+    fun onFocusLost() {}
+
+    /**
+     * Request focus on the article TextField.
+     * Call this when the TextField is ready to receive focus.
+     */
+    fun requestFocus() {}
 
     /**
      * Register broadcast receiver for scan data (for broadcast-based scanners like PAX).

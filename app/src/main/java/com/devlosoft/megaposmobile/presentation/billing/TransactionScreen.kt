@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.presentation.billing
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,7 +59,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -68,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.scanner.ScannerDriver
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.core.extensions.isPackagingItem
 import com.devlosoft.megaposmobile.presentation.shared.components.AbortConfirmDialog
@@ -108,22 +116,71 @@ fun TransactionScreen(
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
 
-    // Scanner driver from ViewModel (configured based on reader brand in settings)
-    val scannerDriver = remember { viewModel.getScannerDriver() }
+    // Scanner driver from ViewModel - loaded asynchronously from actual configuration
+    val scannerDriver by produceState<ScannerDriver?>(initialValue = null) {
+        value = viewModel.getScannerDriverAsync()
+        Log.d("TransactionScreen", "scannerDriver loaded: ${value?.getBrand()}")
+    }
 
     // For PAX: Register broadcast receiver to capture scanner data
     // For Zebra: Uses keyboard events (onPreviewKeyEvent in Scaffold)
     DisposableEffect(scannerDriver) {
-        if (scannerDriver.usesBroadcastReceiver()) {
-            scannerDriver.registerBroadcastReceiver(context) { barcode ->
-                viewModel.onEvent(BillingEvent.ScannerInput(barcode))
+        scannerDriver?.let { driver ->
+            if (driver.usesBroadcastReceiver()) {
+                driver.registerBroadcastReceiver(context) { barcode ->
+                    viewModel.onEvent(BillingEvent.ScannerInput(barcode))
+                }
             }
         }
         onDispose {
-            if (scannerDriver.usesBroadcastReceiver()) {
-                scannerDriver.unregisterBroadcastReceiver(context)
+            scannerDriver?.let { driver ->
+                if (driver.usesBroadcastReceiver()) {
+                    driver.unregisterBroadcastReceiver(context)
+                }
             }
             viewModel.resetScanner()
+        }
+    }
+
+    // Focus requester for article search field (PAX scanner mode)
+    val articleFocusRequester = remember { FocusRequester() }
+
+    // State to track focus requests - use counter to trigger LaunchedEffect
+    var focusRequestCounter by remember { mutableStateOf(0) }
+    var isTextFieldMounted by remember { mutableStateOf(false) }
+
+    // Set focus requester on the driver when it's ready
+    LaunchedEffect(scannerDriver) {
+        Log.d("TransactionScreen", "LaunchedEffect(scannerDriver) - driver=${scannerDriver?.getBrand()}")
+        scannerDriver?.setFocusRequester(articleFocusRequester)
+    }
+
+    // Handle focus requests safely in LaunchedEffect (after composition)
+    LaunchedEffect(focusRequestCounter) {
+        if (focusRequestCounter > 0 && isTextFieldMounted) {
+            Log.d("TransactionScreen", "LaunchedEffect handling focus request #$focusRequestCounter")
+            delay(150) // Delay to ensure composition is complete
+            try {
+                articleFocusRequester.requestFocus()
+                Log.d("TransactionScreen", "Focus requested successfully!")
+            } catch (e: Exception) {
+                Log.e("TransactionScreen", "Failed to request focus: ${e.message}")
+            }
+        }
+    }
+
+    // Request initial focus when TextField is mounted and driver is ready
+    LaunchedEffect(scannerDriver, isTextFieldMounted) {
+        Log.d("TransactionScreen", "LaunchedEffect(scannerDriver, isTextFieldMounted) - driver=${scannerDriver?.getBrand()}, mounted=$isTextFieldMounted")
+        if (scannerDriver?.requiresPersistentFocus() == true && isTextFieldMounted) {
+            delay(200) // Wait for composition to settle
+            Log.d("TransactionScreen", "Requesting initial focus...")
+            try {
+                articleFocusRequester.requestFocus()
+                Log.d("TransactionScreen", "Initial focus requested successfully!")
+            } catch (e: Exception) {
+                Log.e("TransactionScreen", "Failed to request initial focus: ${e.message}")
+            }
         }
     }
 
@@ -342,13 +399,16 @@ fun TransactionScreen(
                 return@onPreviewKeyEvent true
             }
 
+            // If scanner driver not loaded yet, don't consume events
+            val driver = scannerDriver ?: return@onPreviewKeyEvent false
+
             // Process hardware scanner input (Zebra/PAX based on config)
             // Scanner has priority - uses timing to distinguish from manual input
-            val barcode = scannerDriver.processKeyEvent(keyEvent)
+            val barcode = driver.processKeyEvent(keyEvent)
             if (barcode != null) {
                 viewModel.onEvent(BillingEvent.ScannerInput(barcode))
             }
-            scannerDriver.shouldConsumeEvent(keyEvent)
+            driver.shouldConsumeEvent(keyEvent)
         },
         contentWindowInsets = WindowInsets(0)
     ) { _ ->
@@ -485,6 +545,19 @@ fun TransactionScreen(
 
             Spacer(modifier = Modifier.height(dimensions.spacerSmall))
 
+            // Restore focus after adding article (for PAX)
+            LaunchedEffect(state.isAddingArticle) {
+                if (!state.isAddingArticle && scannerDriver?.requiresPersistentFocus() == true) {
+                    Log.d("TransactionScreen", "Article added, requesting focus restore...")
+                    delay(100)
+                    try {
+                        articleFocusRequester.requestFocus()
+                    } catch (e: Exception) {
+                        Log.e("TransactionScreen", "Failed to restore focus: ${e.message}")
+                    }
+                }
+            }
+
             // Article search field
             OutlinedTextField(
                 value = state.articleSearchQuery,
@@ -492,7 +565,23 @@ fun TransactionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .padding(horizontal = dimensions.horizontalPadding),
+                    .padding(horizontal = dimensions.horizontalPadding)
+                    .focusRequester(articleFocusRequester)
+                    .onGloballyPositioned {
+                        // Mark TextField as mounted - focus will be requested by LaunchedEffect
+                        if (!isTextFieldMounted) {
+                            Log.d("TransactionScreen", "onGloballyPositioned - TextField mounted")
+                            isTextFieldMounted = true
+                        }
+                    }
+                    .onFocusChanged { focusState ->
+                        Log.d("TransactionScreen", "onFocusChanged: isFocused=${focusState.isFocused}")
+                        // When TextField loses focus, trigger focus restore via counter (safe, runs in LaunchedEffect)
+                        if (!focusState.isFocused && !state.isAddingArticle && scannerDriver?.requiresPersistentFocus() == true) {
+                            Log.d("TransactionScreen", "Focus lost, scheduling restore...")
+                            focusRequestCounter++
+                        }
+                    },
                 placeholder = { Text("Articulo", fontSize = dimensions.fontSizeSmall) },
                 enabled = !state.isAddingArticle,
                 trailingIcon = {

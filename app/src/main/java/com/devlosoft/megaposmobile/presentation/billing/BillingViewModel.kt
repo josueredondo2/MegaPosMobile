@@ -82,6 +82,12 @@ class BillingViewModel @Inject constructor(
     fun getScannerDriver(): ScannerDriver = scannerManager.getDriverSync()
 
     /**
+     * Get the scanner driver asynchronously, reading from actual configuration.
+     * Use this to ensure the correct driver is loaded based on settings.
+     */
+    suspend fun getScannerDriverAsync(): ScannerDriver = scannerManager.getDriver()
+
+    /**
      * Reset the scanner driver state.
      */
     fun resetScanner() = scannerManager.resetDriver()
