@@ -98,7 +98,12 @@ fun AdvancedOptionsScreen(
 
     @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+            )
+        },
         contentWindowInsets = WindowInsets(0)
     ) { _ ->
         Column(
@@ -108,7 +113,7 @@ fun AdvancedOptionsScreen(
         ) {
             // Header
             AppHeader(
-                endContent = HeaderEndContent.VersionText(version = "1.0")
+                endContent = HeaderEndContent.StaticUserIcon
             )
 
             // Contenido centrado
