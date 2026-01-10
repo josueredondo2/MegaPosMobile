@@ -2,6 +2,7 @@ package com.devlosoft.megaposmobile.presentation.configuration
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.core.common.ApiConfig
 import com.devlosoft.megaposmobile.core.util.DeviceIdentifier
 import com.devlosoft.megaposmobile.core.util.NetworkUtils
@@ -21,6 +22,12 @@ class ConfigurationViewModel @Inject constructor(
     private val deviceIdentifier: DeviceIdentifier,
     private val networkUtils: NetworkUtils
 ) : ViewModel() {
+
+    companion object {
+        // Developer defaults
+        private const val DEV_SERVER_HOST = "192.168.18.63:5166"
+        private const val DEV_HOSTNAME = "A920Pro01"
+    }
 
     private val _state = MutableStateFlow(ConfigurationState())
     val state: StateFlow<ConfigurationState> = _state.asStateFlow()
@@ -44,12 +51,20 @@ class ConfigurationViewModel @Inject constructor(
     private fun loadConfiguration() {
         viewModelScope.launch {
             serverConfigDao.getActiveServerConfig().collect { config ->
-                config?.let {
+                if (config != null) {
                     _state.update { currentState ->
                         currentState.copy(
                             serverHost = ApiConfig.extractHostFromUrl(config.serverUrl),
                             useHttps = config.useHttps,
                             hostname = config.serverName
+                        )
+                    }
+                } else if (BuildConfig.DEBUG) {
+                    // Set developer defaults when no config exists
+                    _state.update { currentState ->
+                        currentState.copy(
+                            serverHost = DEV_SERVER_HOST,
+                            hostname = DEV_HOSTNAME
                         )
                     }
                 }
