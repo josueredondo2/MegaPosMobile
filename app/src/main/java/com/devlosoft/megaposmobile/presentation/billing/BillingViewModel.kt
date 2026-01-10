@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
+import com.devlosoft.megaposmobile.core.scanner.ScannerDriver
+import com.devlosoft.megaposmobile.core.scanner.ScannerManager
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.FelApi
 import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
@@ -63,6 +65,7 @@ class BillingViewModel @Inject constructor(
     private val printPauseReceiptUseCase: PrintPauseReceiptUseCase,
     private val voidItemUseCase: VoidItemUseCase,
     private val changeQuantityUseCase: ChangeQuantityUseCase,
+    private val scannerManager: ScannerManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -71,6 +74,18 @@ class BillingViewModel @Inject constructor(
     }
 
     private val _state = MutableStateFlow(BillingState())
+
+    /**
+     * Get the scanner driver based on configuration.
+     * Uses synchronous method for immediate access in Compose.
+     */
+    fun getScannerDriver(): ScannerDriver = scannerManager.getDriverSync()
+
+    /**
+     * Reset the scanner driver state.
+     */
+    fun resetScanner() = scannerManager.resetDriver()
+
     val state: StateFlow<BillingState> = _state.asStateFlow()
 
     // Callback for pending authorized action - replaces PendingAuthorizationAction pattern

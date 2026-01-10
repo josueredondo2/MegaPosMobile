@@ -59,6 +59,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -230,6 +231,17 @@ fun AdvancedOptionsScreen(
                         selectedProvider = state.datafonoProvider,
                         onProviderSelected = { provider ->
                             viewModel.onEvent(AdvancedOptionsEvent.DatafonoProviderChanged(provider))
+                        },
+                        enabled = !state.isLoading
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Reader Brand Dropdown
+                    ReaderBrandSelector(
+                        selectedBrand = state.readerBrand,
+                        onBrandSelected = { brand ->
+                            viewModel.onEvent(AdvancedOptionsEvent.ReaderBrandChanged(brand))
                         },
                         enabled = !state.isLoading
                     )
@@ -670,6 +682,75 @@ private fun PrinterModelSelector(
                     },
                     onClick = {
                         onModelSelected(model)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReaderBrandSelector(
+    selectedBrand: ReaderBrand,
+    onBrandSelected: (ReaderBrand) -> Unit,
+    enabled: Boolean
+) {
+    val dimensions = LocalDimensions.current
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Marca Lector",
+            fontSize = dimensions.fontSizeMedium,
+            color = Color.Black,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled) { expanded = true }
+        ) {
+            OutlinedTextField(
+                value = selectedBrand.displayName,
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false,
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Dropdown"
+                    )
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MegaSuperRed,
+                    cursorColor = MegaSuperRed,
+                    disabledBorderColor = Color.Gray,
+                    disabledTextColor = Color.Black
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = dimensions.fontSizeMedium
+                )
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ReaderBrand.entries.forEach { brand ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = brand.displayName,
+                            fontWeight = if (brand == selectedBrand) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onBrandSelected(brand)
                         expanded = false
                     }
                 )

@@ -3,6 +3,7 @@ package com.devlosoft.megaposmobile.presentation.advancedoptions
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 
 sealed class AdvancedOptionsEvent {
     // Field changes
@@ -11,6 +12,7 @@ sealed class AdvancedOptionsEvent {
     data class DatafonoProviderChanged(val provider: DatafonoProvider) : AdvancedOptionsEvent()
     data class PrinterIpChanged(val printerIp: String) : AdvancedOptionsEvent()
     data class PrinterModelChanged(val model: PrinterModel) : AdvancedOptionsEvent()
+    data class ReaderBrandChanged(val brand: ReaderBrand) : AdvancedOptionsEvent()
 
     // Printer mode
     data class PrinterModeChanged(val useIp: Boolean) : AdvancedOptionsEvent()

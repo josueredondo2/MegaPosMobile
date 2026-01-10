@@ -55,7 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import com.devlosoft.megaposmobile.core.scanner.BarcodeScannerHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -95,6 +95,7 @@ fun TransactionScreen(
     onNavigateToHome: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
     val dimensions = LocalDimensions.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val numberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CR")).apply {
@@ -107,12 +108,23 @@ fun TransactionScreen(
     // Selected item state
     var selectedItemId by remember { mutableStateOf<String?>(null) }
 
-    // Barcode scanner handler for Zebra hardware scanners (keyboard wedge mode)
-    val scannerHandler = remember { BarcodeScannerHandler() }
+    // Scanner driver from ViewModel (configured based on reader brand in settings)
+    val scannerDriver = remember { viewModel.getScannerDriver() }
 
-    // Clean up scanner buffer when leaving screen
-    DisposableEffect(Unit) {
-        onDispose { scannerHandler.reset() }
+    // For PAX: Register broadcast receiver to capture scanner data
+    // For Zebra: Uses keyboard events (onPreviewKeyEvent in Scaffold)
+    DisposableEffect(scannerDriver) {
+        if (scannerDriver.usesBroadcastReceiver()) {
+            scannerDriver.registerBroadcastReceiver(context) { barcode ->
+                viewModel.onEvent(BillingEvent.ScannerInput(barcode))
+            }
+        }
+        onDispose {
+            if (scannerDriver.usesBroadcastReceiver()) {
+                scannerDriver.unregisterBroadcastReceiver(context)
+            }
+            viewModel.resetScanner()
+        }
     }
 
     // TODO dialog (from state)
@@ -330,13 +342,13 @@ fun TransactionScreen(
                 return@onPreviewKeyEvent true
             }
 
-            // Process hardware scanner input (Zebra)
+            // Process hardware scanner input (Zebra/PAX based on config)
             // Scanner has priority - uses timing to distinguish from manual input
-            val barcode = scannerHandler.processKeyEvent(keyEvent)
+            val barcode = scannerDriver.processKeyEvent(keyEvent)
             if (barcode != null) {
                 viewModel.onEvent(BillingEvent.ScannerInput(barcode))
             }
-            scannerHandler.shouldConsumeEvent(keyEvent)
+            scannerDriver.shouldConsumeEvent(keyEvent)
         },
         contentWindowInsets = WindowInsets(0)
     ) { _ ->

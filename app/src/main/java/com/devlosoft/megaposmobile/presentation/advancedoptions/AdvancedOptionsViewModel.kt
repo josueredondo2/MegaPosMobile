@@ -9,6 +9,7 @@ import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.data.local.entity.ServerConfigEntity
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +49,9 @@ class AdvancedOptionsViewModel @Inject constructor(
             }
             is AdvancedOptionsEvent.PrinterModelChanged -> {
                 _state.update { it.copy(printerModel = event.model) }
+            }
+            is AdvancedOptionsEvent.ReaderBrandChanged -> {
+                _state.update { it.copy(readerBrand = event.brand) }
             }
             is AdvancedOptionsEvent.PrinterModeChanged -> {
                 _state.update { it.copy(usePrinterIp = event.useIp) }
@@ -91,6 +95,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                             datafonoProvider = DatafonoProvider.fromString(config.datafonoProvider),
                             printerIp = config.printerIp,
                             printerModel = PrinterModel.fromString(config.printerModel),
+                            readerBrand = ReaderBrand.fromString(config.readerBrand),
                             usePrinterIp = config.usePrinterIp,
                             selectedBluetoothDevice = if (config.printerBluetoothAddress.isNotBlank()) {
                                 BluetoothPrinterDevice(
@@ -276,7 +281,8 @@ class AdvancedOptionsViewModel @Inject constructor(
                     printerBluetoothAddress = _state.value.selectedBluetoothDevice?.address ?: "",
                     printerBluetoothName = _state.value.selectedBluetoothDevice?.name ?: "",
                     usePrinterIp = _state.value.usePrinterIp,
-                    printerModel = _state.value.printerModel.name
+                    printerModel = _state.value.printerModel.name,
+                    readerBrand = _state.value.readerBrand.name
                 )
 
                 serverConfigDao.insertServerConfig(config)
