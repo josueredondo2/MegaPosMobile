@@ -47,9 +47,16 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Add reader brand column for scanner device type (Zebra or PAX)
+        db.execSQL("ALTER TABLE server_config ADD COLUMN readerBrand TEXT NOT NULL DEFAULT 'ZEBRA'")
+    }
+}
+
 @Database(
     entities = [ServerConfigEntity::class, ActiveTransactionEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {

@@ -44,7 +44,7 @@ class ConfigurationViewModel @Inject constructor(
     private fun loadConfiguration() {
         viewModelScope.launch {
             serverConfigDao.getActiveServerConfig().collect { config ->
-                config?.let {
+                if (config != null) {
                     _state.update { currentState ->
                         currentState.copy(
                             serverHost = ApiConfig.extractHostFromUrl(config.serverUrl),
