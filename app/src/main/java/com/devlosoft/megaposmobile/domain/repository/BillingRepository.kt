@@ -59,6 +59,17 @@ interface BillingRepository {
         affiliateType: String
     ): Flow<Resource<Boolean>>
 
+    suspend fun updateTransaction(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String,
+        customerId: Int? = null,
+        customerIdType: String? = null,
+        customerName: String? = null,
+        affiliateType: String,
+        transactionTypeCode: String? = null
+    ): Flow<Resource<Boolean>>
+
     suspend fun getTransactionDetails(
         transactionId: String
     ): Flow<Resource<InvoiceData>>

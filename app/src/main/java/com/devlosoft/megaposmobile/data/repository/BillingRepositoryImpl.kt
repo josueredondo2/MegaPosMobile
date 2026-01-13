@@ -17,6 +17,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.data.remote.dto.PauseTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ValidateClientRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.ValidateClientResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
@@ -247,6 +248,43 @@ class BillingRepositoryImpl @Inject constructor(
                 affiliateType = affiliateType
             )
             val response = transactionApi.updateTransactionCustomer(request)
+            if (response.isSuccessful) {
+                emit(Resource.Success(true))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = ErrorResponseDto.fromJson(errorBody)
+                val errorMessage = ErrorResponseDto.getSpanishMessage(errorResponse?.errorCode)
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.message}"))
+        }
+    }
+
+    override suspend fun updateTransaction(
+        transactionId: String,
+        sessionId: String,
+        workstationId: String,
+        customerId: Int?,
+        customerIdType: String?,
+        customerName: String?,
+        affiliateType: String,
+        transactionTypeCode: String?
+    ): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+        try {
+            val request = UpdateTransactionRequestDto(
+                sessionId = sessionId,
+                workstationId = workstationId,
+                customerId = customerId,
+                customerIdType = customerIdType,
+                customerName = customerName,
+                affiliateType = affiliateType,
+                transactionTypeCode = transactionTypeCode
+            )
+            val response = transactionApi.updateTransaction(transactionId, request)
             if (response.isSuccessful) {
                 emit(Resource.Success(true))
             } else {

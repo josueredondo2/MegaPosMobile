@@ -40,6 +40,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
