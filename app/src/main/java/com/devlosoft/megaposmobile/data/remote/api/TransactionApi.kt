@@ -17,6 +17,7 @@ import com.devlosoft.megaposmobile.data.remote.dto.PrintTransactionResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.TodayTransactionDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdatePackagingsRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionCustomerRequestDto
+import com.devlosoft.megaposmobile.data.remote.dto.UpdateTransactionRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.VoidItemRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -57,6 +58,12 @@ interface TransactionApi {
     @PUT("transaction/customer")
     suspend fun updateTransactionCustomer(
         @Body request: UpdateTransactionCustomerRequestDto
+    ): Response<Unit>
+
+    @PATCH("transaction/{transactionId}")
+    suspend fun updateTransaction(
+        @Path("transactionId") transactionId: String,
+        @Body request: UpdateTransactionRequestDto
     ): Response<Unit>
 
     @GET("transaction/{transactionId}/details")

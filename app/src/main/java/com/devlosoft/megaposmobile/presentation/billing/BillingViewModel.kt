@@ -485,14 +485,15 @@ class BillingViewModel @Inject constructor(
                 return@launch
             }
 
-            billingRepository.updateTransactionCustomer(
+            billingRepository.updateTransaction(
                 transactionId = transactionCode,
                 sessionId = sessionId,
                 workstationId = stationId,
                 customerId = customer.partyId,
-                customerIdType = _state.value.documentType,
+                customerIdType = customer.identificationType,
                 customerName = customer.name,
-                affiliateType = customer.affiliateType
+                affiliateType = customer.affiliateType,
+                transactionTypeCode = _state.value.documentType
             ).collect { result ->
                 when (result) {
                     is Resource.Loading -> {
@@ -644,14 +645,15 @@ class BillingViewModel @Inject constructor(
 
                 _state.update { it.copy(isCreatingTransaction = true) }
 
-                billingRepository.updateTransactionCustomer(
+                billingRepository.updateTransaction(
                     transactionId = transactionCode,
                     sessionId = sessionId,
                     workstationId = stationId,
                     customerId = customerToUse.partyId,
                     customerIdType = customerToUse.identificationType,
                     customerName = customerToUse.name,
-                    affiliateType = customerToUse.affiliateType
+                    affiliateType = customerToUse.affiliateType,
+                    transactionTypeCode = _state.value.documentType
                 ).collect { result ->
                     when (result) {
                         is Resource.Loading -> { }
