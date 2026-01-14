@@ -11,6 +11,7 @@ import com.devlosoft.megaposmobile.core.scanner.ScannerDriver
 import com.devlosoft.megaposmobile.core.scanner.ScannerManager
 import com.devlosoft.megaposmobile.data.local.preferences.SessionManager
 import com.devlosoft.megaposmobile.data.remote.api.FelApi
+import com.devlosoft.megaposmobile.data.remote.dto.EconomicActivityDto
 import com.devlosoft.megaposmobile.data.remote.dto.PackagingItemDto
 import com.devlosoft.megaposmobile.domain.model.Customer
 import com.devlosoft.megaposmobile.domain.model.InvoiceData
@@ -603,8 +604,22 @@ class BillingViewModel @Inject constructor(
                         if (response?.result == 0) {
                             // Validation successful
                             val activities = response.activities ?: emptyList()
+                            Log.d("BillingViewModel", "Activities from API: ${activities.size}")
+                            // Add default "No Contribuyente" activity if list is empty
+                            val activitiesWithDefault = activities.ifEmpty {
+                                Log.d("BillingViewModel", "Adding default 'No Contribuyente' activity")
+                                listOf(
+                                    EconomicActivityDto(
+                                        status = "",
+                                        type = "",
+                                        code = "-1",
+                                        description = "No Contribuyente"
+                                    )
+                                )
+                            }
                             // Sort activities: type "P" first, then others
-                            val sortedActivities = activities.sortedByDescending { it.type == "P" }
+                            val sortedActivities = activitiesWithDefault.sortedByDescending { it.type == "P" }
+                            Log.d("BillingViewModel", "Final activities to show: ${sortedActivities.size}, items: ${sortedActivities.map { it.description }}")
                             // Show activity selection dialog (even if empty, user can search)
                             _state.update {
                                 it.copy(

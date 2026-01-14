@@ -41,7 +41,7 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("Boolean", "DEVELOPMENT_MODE", "true")
+            buildConfigField("Boolean", "DEVELOPMENT_MODE", "false")
         }
         release {
             isMinifyEnabled = false
