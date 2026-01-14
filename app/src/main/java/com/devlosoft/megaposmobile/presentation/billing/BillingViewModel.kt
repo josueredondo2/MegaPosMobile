@@ -170,8 +170,7 @@ class BillingViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         customerSearchQuery = "",
-                        customers = emptyList(),
-                        selectedCustomer = null
+                        customers = emptyList()
                     )
                 }
             }
@@ -553,16 +552,27 @@ class BillingViewModel @Inject constructor(
     }
 
     private fun startTransaction() {
-        // Use default customer if none selected
-        val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
-        val documentType = _state.value.documentType
+        viewModelScope.launch {
+            // Use default customer if none selected
+            val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
+            val documentType = _state.value.documentType
+            
+            // Validate that the logged-in user is not billing themselves
+            val userCode = sessionManager.getUserCode().first()
+            if (!userCode.isNullOrBlank() && customerToUse.identification == userCode) {
+                _state.update {
+                    it.copy(createTransactionError = "La persona que inició sesión no se puede facturar a sí misma")
+                }
+                return@launch
+            }
 
-        // If documentType is FC (Factura Electrónica), validate client first
-        if (documentType == "FC") {
-            validateClientAndProceed(customerToUse)
-        } else {
-            // Tiquete Electrónico (CO) - proceed directly
-            proceedWithTransaction(customerToUse)
+            // If documentType is FC (Factura Electrónica), validate client first
+            if (documentType == "FC") {
+                validateClientAndProceed(customerToUse)
+            } else {
+                // Tiquete Electrónico (CO) - proceed directly
+                proceedWithTransaction(customerToUse)
+            }
         }
     }
 
@@ -1482,7 +1492,9 @@ class BillingViewModel @Inject constructor(
                             transactionCode = "",
                             isTransactionCreated = false,
                             invoiceData = InvoiceData(),
-                            selectedCustomer = null
+                            selectedCustomer = null,
+                            customerSearchQuery = "",
+                            customers = emptyList()
                         )
                     }
                 },
@@ -1625,7 +1637,9 @@ class BillingViewModel @Inject constructor(
                             transactionCode = "",
                             isTransactionCreated = false,
                             invoiceData = InvoiceData(),
-                            selectedCustomer = null
+                            selectedCustomer = null,
+                            customerSearchQuery = "",
+                            customers = emptyList()
                         )
                     }
                 }
@@ -1689,7 +1703,9 @@ class BillingViewModel @Inject constructor(
                                     transactionCode = "",
                                     isTransactionCreated = false,
                                     invoiceData = InvoiceData(),
-                                    selectedCustomer = null
+                                    selectedCustomer = null,
+                                    customerSearchQuery = "",
+                                    customers = emptyList()
                                 )
                             }
                         }
@@ -1766,7 +1782,9 @@ class BillingViewModel @Inject constructor(
                     transactionCode = "",
                     isTransactionCreated = false,
                     invoiceData = InvoiceData(),
-                    selectedCustomer = null
+                    selectedCustomer = null,
+                    customerSearchQuery = "",
+                    customers = emptyList()
                 )
             }
         }
