@@ -130,7 +130,11 @@ fun NavGraph(
                 }
                 val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
 
+                // Get navigation arguments
+                val args = backStackEntry.toRoute<Billing>()
+
                 BillingScreen(
+                    resetState = args.resetState,
                     viewModel = billingViewModel,
                     onNavigateToTransaction = {
                         navController.navigate(TransactionDetail)
@@ -198,14 +202,14 @@ fun NavGraph(
                     processViewModel.startPaymentProcess(args.transactionId, args.amount)
                 },
                 onSuccess = {
-                    // Navigate to Billing for new transaction, skipping recovery check
-                    navController.navigate(Billing(skipRecoveryCheck = true)) {
+                    // Navigate to Billing for new transaction, skipping recovery check and resetting state
+                    navController.navigate(Billing(skipRecoveryCheck = true, resetState = true)) {
                         popUpTo<Home> { inclusive = false }
                     }
                 },
                 onSkipPrintSuccess = {
-                    // Navigate directly to new transaction when skipping print
-                    navController.navigate(Billing(skipRecoveryCheck = true)) {
+                    // Navigate directly to new transaction when skipping print, resetting state
+                    navController.navigate(Billing(skipRecoveryCheck = true, resetState = true)) {
                         popUpTo<Home> { inclusive = false }
                     }
                 },

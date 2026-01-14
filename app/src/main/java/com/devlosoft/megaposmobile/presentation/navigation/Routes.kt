@@ -28,7 +28,10 @@ data object TodayTransactions
 
 // Routes with arguments
 @Serializable
-data class Billing(val skipRecoveryCheck: Boolean = false)
+data class Billing(
+    val skipRecoveryCheck: Boolean = false,
+    val resetState: Boolean = false
+)
 
 @Serializable
 data class Process(val processType: String)

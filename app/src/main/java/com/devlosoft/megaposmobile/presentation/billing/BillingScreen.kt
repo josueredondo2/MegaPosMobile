@@ -69,6 +69,7 @@ import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun BillingScreen(
+    resetState: Boolean = false,
     viewModel: BillingViewModel = hiltViewModel(),
     onNavigateToTransaction: () -> Unit,
     onBack: () -> Unit,
@@ -79,9 +80,13 @@ fun BillingScreen(
     val dimensions = LocalDimensions.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Clear previous customer search results when screen is shown
-    LaunchedEffect(Unit) {
-        viewModel.onEvent(BillingEvent.ClearCustomerSearch)
+    // Clear previous customer search results or reset entire state based on resetState flag
+
+    LaunchedEffect(resetState) {
+        if (resetState) {
+            // Reset entire state when coming from completed transaction
+            viewModel.onEvent(BillingEvent.ResetForNewTransaction)
+        }
     }
 
     // Handle navigation to transaction screen
