@@ -20,6 +20,11 @@ data class BillingState(
     val customerSearchError: String? = null,
     val documentType: String = "CO",  // "CO" = Tiquete Electronico (default), "FC" = Factura Electronica
 
+    // Session validation state
+    val isValidatingSession: Boolean = false,
+    val sessionExpiredError: String? = null,
+    val shouldNavigateToLogin: Boolean = false,
+
     // FEL client validation state
     val isValidatingClient: Boolean = false,
     val clientValidationError: String? = null,

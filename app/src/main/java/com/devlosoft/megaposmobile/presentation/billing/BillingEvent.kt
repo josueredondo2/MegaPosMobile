@@ -28,6 +28,10 @@ sealed class BillingEvent {
     data object DismissCreateTransactionError : BillingEvent()
     data object NavigationHandled : BillingEvent()
 
+    // Session validation events
+    data object NavigateToLogin : BillingEvent()
+    data object DismissSessionExpiredError : BillingEvent()
+
     // Article events
     data class ArticleSearchQueryChanged(val query: String) : BillingEvent()
     data object AddArticle : BillingEvent()

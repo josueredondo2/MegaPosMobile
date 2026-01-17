@@ -339,6 +339,7 @@ fun HomeScreen(
                             icon = Icons.Default.Receipt,
                             title = "Transacciones del dia",
                             description = "Ver transacciones realizadas durante el dia.",
+                            enabled = state.isStationOpen,
                             onClick = { viewModel.onEvent(HomeEvent.RequestViewTransactions) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
