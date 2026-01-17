@@ -46,6 +46,7 @@ class ProcessViewModel @Inject constructor(
     private val openTerminalUseCase: OpenTerminalUseCase,
     private val closeTerminalUseCase: CloseTerminalUseCase,
     private val billingRepository: BillingRepository,
+    private val paymentRepository: PaymentRepository,
     private val sessionManager: SessionManager,
     private val stationStatus: StationStatus,
     private val printDocumentsUseCase: PrintDocumentsUseCase,
@@ -53,7 +54,6 @@ class ProcessViewModel @Inject constructor(
     private val dataphoneManager: DataphoneManager,
     private val dataphoneState: DataphoneState,
     private val serverConfigDao: ServerConfigDao,
-    private val paymentRepository: PaymentRepository,
     private val printerManager: PrinterManager,
     private val auditRepository: AuditRepository
 ) : ViewModel() {
@@ -106,90 +106,72 @@ class ProcessViewModel @Inject constructor(
                 )
             }
 
-            // Log audit before calling dataphone
-            auditRepository.log(
-                action = "ADD",
-                detail = "Iniciando pago datáfono por $formattedAmount - Trans: $transactionId",
-                transactionId = transactionId
-            )
-
-            // Call dataphone for real payment
-            val paymentResult = dataphoneManager.processPayment(amount.toLong())
-
-            paymentResult.fold(
-                onSuccess = { dataphoneResult ->
-                    Log.d(TAG, "Payment successful: auth=${dataphoneResult.authorizationCode}")
-
-                    // Update terminal ID if it's new or different
-                    val newTerminalId = dataphoneResult.terminalid ?: ""
-                    if (newTerminalId.isNotBlank()) {
-                        val currentTerminalId = dataphoneState.getTerminalId()
-                        if (currentTerminalId.isBlank() || currentTerminalId != newTerminalId) {
-                            Log.d(TAG, "Terminal ID changed: '$currentTerminalId' -> '$newTerminalId'")
-                            serverConfigDao.updateDataphoneTerminalId(newTerminalId)
-                            dataphoneState.setTerminalId(newTerminalId)
-                        }
+            // Call payment repository to process dataphone payment
+            Log.d(TAG, "Calling paymentRepository.processDataphonePayment...")
+            paymentRepository.processDataphonePayment(
+                transactionId = transactionId,
+                amount = amount
+            ).collect { paymentResult ->
+                when (paymentResult) {
+                    is Resource.Loading -> {
+                        // Already in loading state
                     }
-
-                    // Get session data using UseCase
-                    val sessionResult = getSessionInfoUseCase()
-                    if (sessionResult.isFailure) {
-                        _state.update {
-                            it.copy(status = ProcessStatus.Error(sessionResult.exceptionOrNull()?.message ?: "No hay sesión activa"))
+                    is Resource.Success -> {
+                        val dataphoneData = paymentResult.data
+                        if (dataphoneData == null) {
+                            _state.update {
+                                it.copy(status = ProcessStatus.Error("Error: datos de pago nulos"))
+                            }
+                            return@collect
                         }
-                        return@launch
-                    }
 
-                    val sessionInfo = sessionResult.getOrThrow()
-
-                    // Create DTO with dataphone data
-                    val dataphoneData = DataphoneDataDto(
-                        authorizationCode = dataphoneResult.authorizationCode,
-                        panmasked = dataphoneResult.panmasked?.replace("*", ""),
-                        cardholder = dataphoneResult.cardholder,
-                        terminalid = dataphoneResult.terminalid ?: "",
-                        receiptNumber = dataphoneResult.receiptNumber,
-                        rrn = dataphoneResult.rrn,
-                        stan = dataphoneResult.stan,
-                        ticket = dataphoneResult.ticket,
-                        totalAmount = dataphoneResult.totalAmount
-                    )
-
-                    // Call finalize transaction with real dataphone data
-                    Log.d(TAG, "Calling finalizeTransaction with dataphone data...")
-                    billingRepository.finalizeTransaction(
-                        sessionId = sessionInfo.sessionId,
-                        workstationId = sessionInfo.stationId,
-                        transactionId = transactionId,
-                        dataphoneData = dataphoneData
-                    ).collect { result ->
-                        when (result) {
-                            is Resource.Loading -> {
-                                // Already in loading state
+                        // Get session data using UseCase
+                        val sessionResult = getSessionInfoUseCase()
+                        if (sessionResult.isFailure) {
+                            _state.update {
+                                it.copy(status = ProcessStatus.Error(sessionResult.exceptionOrNull()?.message ?: "No hay sesión activa"))
                             }
-                            is Resource.Success -> {
-                                Log.d(TAG, "Transaction finalized successfully, now printing...")
-                                // Transaction finalized successfully, now fetch and print documents
-                                fetchAndPrintDocuments(transactionId)
-                            }
-                            is Resource.Error -> {
-                                Log.e(TAG, "Error finalizing transaction: ${result.message}")
-                                _state.update {
-                                    it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
+                            return@collect
+                        }
+
+                        val sessionInfo = sessionResult.getOrThrow()
+
+                        // Now finalize transaction with dataphone data
+                        Log.d(TAG, "Payment successful, calling finalizeTransaction with dataphone data...")
+                        billingRepository.finalizeTransaction(
+                            sessionId = sessionInfo.sessionId,
+                            workstationId = sessionInfo.stationId,
+                            transactionId = transactionId,
+                            dataphoneData = dataphoneData
+                        ).collect { result ->
+                            when (result) {
+                                is Resource.Loading -> {
+                                    // Already in loading state
+                                }
+                                is Resource.Success -> {
+                                    Log.d(TAG, "Transaction finalized successfully, now printing...")
+                                    // Transaction finalized successfully, now fetch and print documents
+                                    fetchAndPrintDocuments(transactionId)
+                                }
+                                is Resource.Error -> {
+                                    Log.e(TAG, "Error finalizing transaction: ${result.message}")
+                                    _state.update {
+                                        it.copy(status = ProcessStatus.Error(result.message ?: "Error al finalizar transacción"))
+                                    }
                                 }
                             }
                         }
                     }
-                },
-                onFailure = { error ->
-                    Log.e(TAG, "Payment failed", error)
-                    _state.update {
-                        it.copy(status = ProcessStatus.Error(
-                            error.message ?: "Error al procesar pago en datáfono"
-                        ))
+                    is Resource.Error -> {
+                        Log.e(TAG, "Payment failed: ${paymentResult.message}")
+                        _state.update {
+                            it.copy(status = ProcessStatus.Error(
+                                paymentResult.message ?: "Error al procesar pago en datáfono"
+                            ))
+                        }
                     }
                 }
-            )
+            }
         }
     }
 

@@ -113,4 +113,33 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override fun isLoggedIn(): Flow<Boolean> = sessionManager.isLoggedIn()
+
+    override suspend fun checkSessionStatus(): Flow<Resource<Boolean>> = flow {
+        emit(Resource.Loading())
+
+        try {
+            val response = authApi.checkSessionStatus()
+
+            if (response.isSuccessful) {
+                val sessionAlive = response.body()?.sessionAlive ?: false
+                emit(Resource.Success(sessionAlive))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val apiError = try {
+                    gson.fromJson(errorBody, ApiErrorDto::class.java)
+                } catch (e: Exception) {
+                    null
+                }
+
+                val errorMessage = apiError?.message ?: "Error al verificar sesión"
+                emit(Resource.Error(errorMessage))
+            }
+        } catch (e: HttpException) {
+            emit(Resource.Error("Error de servidor: ${e.message()}"))
+        } catch (e: IOException) {
+            emit(Resource.Error("Error de conexión. Verifique su conexión a internet."))
+        } catch (e: Exception) {
+            emit(Resource.Error("Error inesperado: ${e.localizedMessage}"))
+        }
+    }
 }

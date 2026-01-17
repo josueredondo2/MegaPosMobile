@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.data.remote.api
 
+import com.devlosoft.megaposmobile.data.remote.dto.CheckSessionStatusResponseDto
 import com.devlosoft.megaposmobile.data.remote.dto.GrantProcessExecRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.LoginRequestDto
 import com.devlosoft.megaposmobile.data.remote.dto.LoginResponseDto
@@ -22,4 +23,7 @@ interface AuthApi {
 
     @POST("grant-process-exec")
     suspend fun grantProcessExec(@Body request: GrantProcessExecRequestDto): Response<Boolean>
+
+    @GET("session-status")
+    suspend fun checkSessionStatus(): Response<CheckSessionStatusResponseDto>
 }

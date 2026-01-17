@@ -93,9 +93,7 @@ fun ConfigurationScreen(
                 .background(Color.White)
         ) {
             // Header
-            AppHeader(
-                endContent = HeaderEndContent.VersionText(version = "1.0")
-            )
+            AppHeader()
 
             // Contenido centrado
             Box(

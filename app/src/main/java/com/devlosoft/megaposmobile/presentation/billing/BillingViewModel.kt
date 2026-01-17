@@ -54,6 +54,7 @@ class BillingViewModel @Inject constructor(
     private val catalogRepository: CatalogRepository,
     private val sessionManager: SessionManager,
     private val felApi: FelApi,
+    private val authRepository: com.devlosoft.megaposmobile.domain.repository.AuthRepository,
     private val authorizeProcessUseCase: AuthorizeProcessUseCase,
     private val printDocumentsUseCase: PrintDocumentsUseCase,
     private val getSessionInfoUseCase: GetSessionInfoUseCase,
@@ -186,6 +187,21 @@ class BillingViewModel @Inject constructor(
             }
             is BillingEvent.NavigationHandled -> {
                 _state.update { it.copy(shouldNavigateToTransaction = false) }
+            }
+            // Session validation events
+            is BillingEvent.NavigateToLogin -> {
+                viewModelScope.launch {
+                    sessionManager.clearSession()
+                    _state.update {
+                        it.copy(
+                            sessionExpiredError = null,
+                            shouldNavigateToLogin = true
+                        )
+                    }
+                }
+            }
+            is BillingEvent.DismissSessionExpiredError -> {
+                _state.update { it.copy(sessionExpiredError = null) }
             }
             is BillingEvent.ArticleSearchQueryChanged -> {
                 _state.update { it.copy(articleSearchQuery = event.query) }
@@ -554,25 +570,63 @@ class BillingViewModel @Inject constructor(
 
     private fun startTransaction() {
         viewModelScope.launch {
-            // Use default customer if none selected
-            val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
-            val documentType = _state.value.documentType
-            
-            // Validate that the logged-in user is not billing themselves
-            val userCode = sessionManager.getUserCode().first()
-            if (!userCode.isNullOrBlank() && customerToUse.identification == userCode) {
-                _state.update {
-                    it.copy(createTransactionError = "La persona que inició sesión no se puede facturar a sí misma")
-                }
-                return@launch
-            }
+            // STEP 1: Check if session is still alive
+            _state.update { it.copy(isValidatingSession = true) }
 
-            // If documentType is FC (Factura Electrónica), validate client first
-            if (documentType == "FC") {
-                validateClientAndProceed(customerToUse)
-            } else {
-                // Tiquete Electrónico (CO) - proceed directly
-                proceedWithTransaction(customerToUse)
+            authRepository.checkSessionStatus().collect { result ->
+                when (result) {
+                    is Resource.Loading -> {
+                        // Already showing loading state
+                    }
+                    is Resource.Success -> {
+                        val sessionAlive = result.data ?: false
+
+                        if (!sessionAlive) {
+                            // Session is dead - show error and prevent transaction
+                            _state.update {
+                                it.copy(
+                                    isValidatingSession = false,
+                                    sessionExpiredError = "Su sesión ha expirado. Por favor inicie sesión nuevamente.",
+                                    shouldNavigateToLogin = true
+                                )
+                            }
+                            return@collect
+                        }
+
+                        // Session is alive - proceed with validation
+                        _state.update { it.copy(isValidatingSession = false) }
+
+                        // STEP 2: Use default customer if none selected
+                        val customerToUse = _state.value.selectedCustomer ?: Customer.DEFAULT
+                        val documentType = _state.value.documentType
+
+                        // STEP 3: Validate that the logged-in user is not billing themselves
+                        val userCode = sessionManager.getUserCode().first()
+                        if (!userCode.isNullOrBlank() && customerToUse.identification == userCode) {
+                            _state.update {
+                                it.copy(createTransactionError = "La persona que inició sesión no se puede facturar a sí misma")
+                            }
+                            return@collect
+                        }
+
+                        // STEP 4: If documentType is FC (Factura Electrónica), validate client first
+                        if (documentType == "FC") {
+                            validateClientAndProceed(customerToUse)
+                        } else {
+                            // Tiquete Electrónico (CO) - proceed directly
+                            proceedWithTransaction(customerToUse)
+                        }
+                    }
+                    is Resource.Error -> {
+                        // Error checking session - show error
+                        _state.update {
+                            it.copy(
+                                isValidatingSession = false,
+                                createTransactionError = result.message ?: "Error al verificar sesión"
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -97,6 +97,29 @@ fun BillingScreen(
         }
     }
 
+    // Handle navigation to login when session expires
+    LaunchedEffect(state.shouldNavigateToLogin) {
+        if (state.shouldNavigateToLogin) {
+            onLogout()
+        }
+    }
+
+    // Session expired dialog
+    state.sessionExpiredError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { /* No dismissable - must navigate to login */ },
+            title = { Text("Sesión Expirada") },
+            text = { Text(error) },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(BillingEvent.NavigateToLogin) }
+                ) {
+                    Text("Iniciar Sesión")
+                }
+            }
+        )
+    }
+
     // Error dialog for transaction creation
     state.createTransactionError?.let { error ->
         AlertDialog(
@@ -368,14 +391,14 @@ fun BillingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(dimensions.buttonHeight),
-                        enabled = !state.isCreatingTransaction && !state.isValidatingClient,
+                        enabled = !state.isCreatingTransaction && !state.isValidatingClient && !state.isValidatingSession,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MegaSuperRed,
                             disabledContainerColor = Color.Gray
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        if (state.isCreatingTransaction || state.isValidatingClient) {
+                        if (state.isCreatingTransaction || state.isValidatingClient || state.isValidatingSession) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
                                 color = Color.White,
