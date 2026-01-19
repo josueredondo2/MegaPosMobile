@@ -17,5 +17,11 @@ data class CloseDataphoneRequestDto(
     val terminalId: String?,
 
     @SerializedName("paxResponse")
-    val paxResponse: PaxCloseResponseDto?
+    val paxResponse: PaxCloseResponseDto?,
+
+    @SerializedName("sessionId")
+    val sessionId: String,
+
+    @SerializedName("workstationId")
+    val workstationId: String
 )
