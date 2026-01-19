@@ -439,11 +439,21 @@ class ProcessViewModel @Inject constructor(
                 // Get terminal ID from state
                 val terminalId = dataphoneState.getTerminalId()
 
+                // Get session ID from session manager
+                val sessionId = sessionManager.getSessionId().first() ?: run {
+                    _state.update {
+                        it.copy(status = ProcessStatus.Error("No se encontró el ID de sesión"))
+                    }
+                    return@launch
+                }
+
                 // Step 4: Send close to megapos API
                 paymentRepository.closeDataphone(
                     pointOfSaleCode = pointOfSaleCode,
                     terminalId = terminalId.takeIf { it.isNotBlank() },
-                    paxResponse = paxResponse
+                    paxResponse = paxResponse,
+                    sessionId = sessionId,
+                    workstationId = pointOfSaleCode
                 ).collect { result ->
                     when (result) {
                         is Resource.Loading -> {

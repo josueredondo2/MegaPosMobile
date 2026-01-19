@@ -667,7 +667,25 @@ class HomeViewModel @Inject constructor(
                     dataphoneResult.terminal ?: ""
                 }
                 Log.d(TAG, "Using terminal ID for close: $terminalId")
-                paymentRepository.closeDataphone(pointOfSaleCode, terminalId, paxResponse).collect { result ->
+
+                // Get session ID from session manager
+                val sessionId = sessionManager.getSessionId().first() ?: run {
+                    _state.update {
+                        it.copy(
+                            isClosingDatafono = false,
+                            closeDatafonoError = "No se encontró el ID de sesión"
+                        )
+                    }
+                    return@launch
+                }
+
+                paymentRepository.closeDataphone(
+                    pointOfSaleCode = pointOfSaleCode,
+                    terminalId = terminalId,
+                    paxResponse = paxResponse,
+                    sessionId = sessionId,
+                    workstationId = pointOfSaleCode
+                ).collect { result ->
                     when (result) {
                         is Resource.Loading -> {
                             // Already showing loading

@@ -104,7 +104,9 @@ class PaymentRepositoryImpl @Inject constructor(
     override suspend fun closeDataphone(
         pointOfSaleCode: String,
         terminalId: String?,
-        paxResponse: PaxCloseResponseDto?
+        paxResponse: PaxCloseResponseDto?,
+        sessionId: String,
+        workstationId: String
     ): Flow<Resource<CloseDataphoneResponseDto>> = flow {
         emit(Resource.Loading())
 
@@ -113,7 +115,9 @@ class PaymentRepositoryImpl @Inject constructor(
                 acquirerCode = "BAC",
                 pointOfSaleCode = pointOfSaleCode,
                 terminalId = terminalId,
-                paxResponse = paxResponse
+                paxResponse = paxResponse,
+                sessionId = sessionId,
+                workstationId = workstationId
             )
 
             val response = paymentApi.closeDataphone(request)

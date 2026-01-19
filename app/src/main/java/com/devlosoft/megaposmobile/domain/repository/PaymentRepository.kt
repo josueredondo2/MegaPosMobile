@@ -26,11 +26,15 @@ interface PaymentRepository {
      * @param pointOfSaleCode Codigo del punto de venta
      * @param terminalId Codigo del terminal/datafono
      * @param paxResponse Respuesta del PAX al hacer cierre
+     * @param sessionId ID de la sesión del terminal
+     * @param workstationId ID de la estación de trabajo
      * @return Respuesta del servidor con los totales del cierre
      */
     suspend fun closeDataphone(
         pointOfSaleCode: String,
         terminalId: String?,
-        paxResponse: PaxCloseResponseDto?
+        paxResponse: PaxCloseResponseDto?,
+        sessionId: String,
+        workstationId: String
     ): Flow<Resource<CloseDataphoneResponseDto>>
 }
