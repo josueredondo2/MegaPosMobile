@@ -1,5 +1,8 @@
+@file:SuppressLint("UnrememberedGetBackStackEntry")
+
 package com.devlosoft.megaposmobile.presentation.navigation
 
+import android.annotation.SuppressLint
 import android.util.Log
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -125,7 +128,8 @@ fun NavGraph(
                 typeMap = mapOf(typeOf<Boolean>() to androidx.navigation.NavType.BoolType)
             ) { backStackEntry ->
                 // Get ViewModel from parent graph to share between screens
-                val parentEntry = remember(backStackEntry) {
+                // Note: Using remember without key to preserve parentEntry across navigation
+                val parentEntry = remember {
                     navController.getBackStackEntry(BillingGraph)
                 }
                 val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
@@ -155,7 +159,8 @@ fun NavGraph(
 
             composable<TransactionDetail> { backStackEntry ->
                 // Get ViewModel from parent graph (shared with BillingScreen)
-                val parentEntry = remember(backStackEntry) {
+                // Note: Using remember without key to preserve parentEntry across navigation
+                val parentEntry = remember {
                     navController.getBackStackEntry(BillingGraph)
                 }
                 val billingViewModel: BillingViewModel = hiltViewModel(parentEntry)
