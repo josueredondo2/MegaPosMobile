@@ -18,6 +18,9 @@ data class AdvancedOptionsState(
     // Reader brand (scanner device)
     val readerBrand: ReaderBrand = ReaderBrand.ZEBRA,
 
+    // Inactivity timeout (minutes)
+    val inactivityTimeoutMinutes: String = "50",
+
     // Bluetooth printer
     val selectedBluetoothDevice: BluetoothPrinterDevice? = null,
     val bluetoothDevices: List<BluetoothPrinterDevice> = emptyList(),

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 import com.devlosoft.megaposmobile.core.util.BluetoothPrinterDevice
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
@@ -154,7 +155,11 @@ fun AdvancedOptionsScreen(
                     // Hostname Field
                     OutlinedTextField(
                         value = state.hostname,
-                        onValueChange = { viewModel.onEvent(AdvancedOptionsEvent.HostnameChanged(it)) },
+                        onValueChange = { newValue ->
+                            if (newValue.length <= FieldLengths.HOSTNAME) {
+                                viewModel.onEvent(AdvancedOptionsEvent.HostnameChanged(newValue))
+                            }
+                        },
                         label = {
                             Text(
                                 text = "Host Name",
@@ -249,6 +254,64 @@ fun AdvancedOptionsScreen(
                             viewModel.onEvent(AdvancedOptionsEvent.ReaderBrandChanged(brand))
                         },
                         enabled = !state.isLoading
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerLarge))
+
+                    // Session Configuration Section
+                    Text(
+                        text = "Configuracion de Sesion",
+                        fontSize = dimensions.fontSizeLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                    // Inactivity Timeout Field
+                    OutlinedTextField(
+                        value = state.inactivityTimeoutMinutes,
+                        onValueChange = { viewModel.onEvent(AdvancedOptionsEvent.InactivityTimeoutChanged(it)) },
+                        label = {
+                            Text(
+                                text = "Tiempo de Inactividad (minutos)",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        placeholder = {
+                            Text(
+                                text = "50",
+                                fontSize = dimensions.fontSizeMedium
+                            )
+                        },
+                        supportingText = {
+                            Text(
+                                text = "Valor entre 1 y 60 minutos",
+                                fontSize = dimensions.fontSizeSmall,
+                                color = Color.Gray
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(dimensions.textFieldHeight + 20.dp),
+                        enabled = !state.isLoading,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = dimensions.fontSizeMedium
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MegaSuperRed,
+                            focusedLabelColor = MegaSuperRed,
+                            cursorColor = MegaSuperRed
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        )
                     )
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))

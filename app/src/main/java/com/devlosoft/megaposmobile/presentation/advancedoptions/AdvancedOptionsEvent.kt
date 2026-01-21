@@ -13,6 +13,7 @@ sealed class AdvancedOptionsEvent {
     data class PrinterIpChanged(val printerIp: String) : AdvancedOptionsEvent()
     data class PrinterModelChanged(val model: PrinterModel) : AdvancedOptionsEvent()
     data class ReaderBrandChanged(val brand: ReaderBrand) : AdvancedOptionsEvent()
+    data class InactivityTimeoutChanged(val minutes: String) : AdvancedOptionsEvent()
 
     // Printer mode
     data class PrinterModeChanged(val useIp: Boolean) : AdvancedOptionsEvent()

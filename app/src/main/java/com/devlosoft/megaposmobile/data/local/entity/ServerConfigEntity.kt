@@ -20,5 +20,6 @@ data class ServerConfigEntity(
     val datafonoProvider: String = "BAC",
     val dataphoneTerminalId: String = "",
     val useHttps: Boolean = false,
-    val readerBrand: String = "ZEBRA"
+    val readerBrand: String = "ZEBRA",
+    val inactivityTimeoutMinutes: Int = 50
 )

@@ -53,6 +53,11 @@ class AdvancedOptionsViewModel @Inject constructor(
             is AdvancedOptionsEvent.ReaderBrandChanged -> {
                 _state.update { it.copy(readerBrand = event.brand) }
             }
+            is AdvancedOptionsEvent.InactivityTimeoutChanged -> {
+                // Only allow digits and validate range (1-60)
+                val filtered = event.minutes.filter { it.isDigit() }
+                _state.update { it.copy(inactivityTimeoutMinutes = filtered) }
+            }
             is AdvancedOptionsEvent.PrinterModeChanged -> {
                 _state.update { it.copy(usePrinterIp = event.useIp) }
             }
@@ -96,6 +101,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                             printerIp = config.printerIp,
                             printerModel = PrinterModel.fromString(config.printerModel),
                             readerBrand = ReaderBrand.fromString(config.readerBrand),
+                            inactivityTimeoutMinutes = config.inactivityTimeoutMinutes.toString(),
                             usePrinterIp = config.usePrinterIp,
                             selectedBluetoothDevice = if (config.printerBluetoothAddress.isNotBlank()) {
                                 BluetoothPrinterDevice(
@@ -267,6 +273,18 @@ class AdvancedOptionsViewModel @Inject constructor(
                     return@launch
                 }
 
+                // Validate inactivity timeout (1-60 minutes)
+                val timeoutMinutes = _state.value.inactivityTimeoutMinutes.toIntOrNull() ?: 0
+                if (timeoutMinutes < 1 || timeoutMinutes > 60) {
+                    _state.update {
+                        it.copy(
+                            error = "El tiempo de inactividad debe ser entre 1 y 60 minutos",
+                            isLoading = false
+                        )
+                    }
+                    return@launch
+                }
+
                 // Get existing config or create new
                 val existingConfig = serverConfigDao.getActiveServerConfigSync()
                 val config = ServerConfigEntity(
@@ -282,7 +300,8 @@ class AdvancedOptionsViewModel @Inject constructor(
                     printerBluetoothName = _state.value.selectedBluetoothDevice?.name ?: "",
                     usePrinterIp = _state.value.usePrinterIp,
                     printerModel = _state.value.printerModel.name,
-                    readerBrand = _state.value.readerBrand.name
+                    readerBrand = _state.value.readerBrand.name,
+                    inactivityTimeoutMinutes = timeoutMinutes
                 )
 
                 serverConfigDao.insertServerConfig(config)

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 import com.devlosoft.megaposmobile.ui.theme.MegaSuperRed
 
 /**
@@ -306,7 +307,11 @@ fun AbortConfirmDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = reason,
-                    onValueChange = onReasonChanged,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= FieldLengths.ABORT_REASON) {
+                            onReasonChanged(newValue)
+                        }
+                    },
                     label = { Text("Motivo") },
                     placeholder = { Text("Ingrese el motivo de la cancelación") },
                     modifier = Modifier.fillMaxWidth(),
