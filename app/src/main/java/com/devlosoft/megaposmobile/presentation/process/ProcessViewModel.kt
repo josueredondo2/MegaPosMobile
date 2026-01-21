@@ -275,6 +275,23 @@ class ProcessViewModel @Inject constructor(
         }
     }
 
+    fun reprintDataphoneClose() {
+        val receiptText = _state.value.dataphoneCloseReceiptText
+        if (receiptText.isNullOrBlank()) {
+            Log.e(TAG, "No receipt text available for reprint")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                printerManager.printText(receiptText)
+                Log.d(TAG, "Comprobante de cierre reimpreso exitosamente")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al reimprimir comprobante de cierre", e)
+            }
+        }
+    }
+
     private fun openTerminal() {
         viewModelScope.launch {
             // Format current date
@@ -480,11 +497,15 @@ class ProcessViewModel @Inject constructor(
                                     reversalsTotal = response?.reversalsTotal ?: 0.0,
                                     netTotal = response?.netTotal ?: salesTotal,
                                     voucher = response?.voucher,
-                                    businessUnitName = businessUnitName
+                                    businessUnitName = businessUnitName,
+                                    closedTransactions = response?.closedTransactions
                                 )
 
                                 printerManager.printText(receiptText)
                                 Log.d(TAG, "Comprobante de cierre impreso exitosamente")
+
+                                // Store receipt text for potential reprint
+                                _state.update { it.copy(dataphoneCloseReceiptText = receiptText) }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error al imprimir comprobante de cierre", e)
                             }

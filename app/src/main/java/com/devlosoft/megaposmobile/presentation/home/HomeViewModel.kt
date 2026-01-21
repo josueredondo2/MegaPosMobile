@@ -8,6 +8,7 @@ import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.dataphone.DataphoneManager
 import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
 import com.devlosoft.megaposmobile.core.printer.PrinterManager
+import com.devlosoft.megaposmobile.core.session.InactivityManager
 import com.devlosoft.megaposmobile.core.state.DataphoneState
 import com.devlosoft.megaposmobile.core.state.StationState
 import com.devlosoft.megaposmobile.core.state.StationStatus
@@ -51,7 +52,8 @@ class HomeViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
     private val gson: Gson,
     private val dataphoneState: DataphoneState,
-    private val checkVersionUseCase: CheckVersionUseCase
+    private val checkVersionUseCase: CheckVersionUseCase,
+    private val inactivityManager: InactivityManager
 ) : ViewModel() {
 
     companion object {
@@ -348,6 +350,8 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             // Close station status when logging out
             stationStatus.close()
+            // Stop inactivity tracking on manual logout
+            inactivityManager.stopTracking()
 
             logoutUseCase().collect { }
             onLogoutCallback?.invoke()
@@ -709,7 +713,8 @@ class HomeViewModel @Inject constructor(
                                     reversalsTotal = response?.reversalsTotal ?: 0.0,
                                     netTotal = response?.netTotal ?: dataphoneResult.salesTotal,
                                     voucher = response?.voucher,
-                                    businessUnitName = businessUnitName
+                                    businessUnitName = businessUnitName,
+                                    closedTransactions = response?.closedTransactions
                                 )
 
                                 printerManager.printText(receiptText)

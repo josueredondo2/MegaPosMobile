@@ -142,7 +142,10 @@ fun ProcessScreen(
                                     }
                                 },
                                 buttonText = successButtonText,
-                                isEnabled = !isNavigating
+                                isEnabled = !isNavigating,
+                                onReprintClick = if (state.dataphoneCloseReceiptText != null) {
+                                    { viewModel.reprintDataphoneClose() }
+                                } else null
                             )
                         }
                         is ProcessStatus.Error -> {
@@ -225,7 +228,8 @@ private fun SuccessContent(
     message: String,
     onBackClick: () -> Unit,
     buttonText: String = "Volver a menu",
-    isEnabled: Boolean = true
+    isEnabled: Boolean = true,
+    onReprintClick: (() -> Unit)? = null
 ) {
     val dimensions = LocalDimensions.current
 
@@ -254,6 +258,30 @@ private fun SuccessContent(
 
         Spacer(modifier = Modifier.height(dimensions.spacerExtraLarge))
 
+        // Reprint button (only shown if onReprintClick is provided)
+        if (onReprintClick != null) {
+            Button(
+                onClick = onReprintClick,
+                enabled = isEnabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(dimensions.buttonHeight),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MegaSuperRed
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Reimprimir",
+                    fontSize = dimensions.fontSizeExtraLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MegaSuperWhite
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+        }
+
         // Action button
         Button(
             onClick = onBackClick,
@@ -262,7 +290,7 @@ private fun SuccessContent(
                 .fillMaxWidth()
                 .height(dimensions.buttonHeight),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MegaSuperRed
+                containerColor = if (onReprintClick != null) Color.Gray else MegaSuperRed
             ),
             shape = RoundedCornerShape(8.dp)
         ) {

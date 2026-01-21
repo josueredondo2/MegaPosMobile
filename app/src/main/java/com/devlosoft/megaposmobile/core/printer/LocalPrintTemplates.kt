@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.core.printer
 
+import com.devlosoft.megaposmobile.data.remote.dto.ClosedTransactionSummaryDto
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,6 +80,7 @@ object LocalPrintTemplates {
      * @param netTotal Total neto
      * @param voucher Voucher del PAX (detalle del cierre)
      * @param businessUnitName Nombre de la unidad de negocio
+     * @param closedTransactions Lista de transacciones cerradas para imprimir al final
      * @return Texto formateado listo para impresión
      */
     fun buildDataphoneCloseReceipt(
@@ -91,7 +93,8 @@ object LocalPrintTemplates {
         reversalsTotal: Double,
         netTotal: Double,
         voucher: String?,
-        businessUnitName: String = "Megasuper"
+        businessUnitName: String = "Megasuper",
+        closedTransactions: List<ClosedTransactionSummaryDto>? = null
     ): String {
         val formattedSalesTotal = currencyFormat.format(salesTotal)
         val formattedReversalsTotal = currencyFormat.format(reversalsTotal)
@@ -121,6 +124,20 @@ object LocalPrintTemplates {
             appendLine(SEPARATOR)
             appendLine(formatLabelValue("TOTAL NETO:", formattedNetTotal))
             appendLine(SEPARATOR)
+
+            // Detalle de transacciones cerradas
+            if (!closedTransactions.isNullOrEmpty()) {
+                appendLine()
+                appendLine(centerText("DETALLE DE TRANSACCIONES"))
+                appendLine(SEPARATOR)
+                for (txn in closedTransactions) {
+                    val authPart = txn.authorizationId?.let { "AUTH:$it" } ?: "AUTH: N/A"
+                    val cardPart = txn.cardNumber ?: "----"
+                    appendLine("ID:${txn.transactionId.trim()} $authPart |$cardPart")
+                    appendLine()
+                }
+                appendLine(SEPARATOR)
+            }
 
             appendLine()
             appendLine()

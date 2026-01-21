@@ -14,6 +14,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import androidx.navigation.toRoute
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.session.InactivityManager
+import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
+import kotlinx.coroutines.runBlocking
 import com.devlosoft.megaposmobile.presentation.advancedoptions.AdvancedOptionsScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingScreen
 import com.devlosoft.megaposmobile.presentation.billing.BillingViewModel
@@ -29,6 +32,8 @@ import kotlin.reflect.typeOf
 @Composable
 fun NavGraph(
     navController: NavHostController,
+    inactivityManager: InactivityManager,
+    serverConfigDao: ServerConfigDao,
     startDestination: Any = Login
 ) {
     NavHost(
@@ -42,6 +47,11 @@ fun NavGraph(
         composable<Login> {
             LoginScreen(
                 onLoginSuccess = {
+                    // Get inactivity timeout from configuration
+                    val timeoutMinutes = runBlocking {
+                        serverConfigDao.getActiveServerConfigSync()?.inactivityTimeoutMinutes ?: 50
+                    }
+                    inactivityManager.startTracking(timeoutMinutes)
                     navController.navigate(Home) {
                         popUpTo<Login> { inclusive = true }
                     }
