@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 import com.devlosoft.megaposmobile.core.scanner.ScannerDriver
 import com.devlosoft.megaposmobile.domain.model.InvoiceItem
 import com.devlosoft.megaposmobile.core.extensions.isPackagingItem
@@ -561,7 +562,11 @@ fun TransactionScreen(
             // Article search field
             OutlinedTextField(
                 value = state.articleSearchQuery,
-                onValueChange = { viewModel.onEvent(BillingEvent.ArticleSearchQueryChanged(it)) },
+                onValueChange = { newValue ->
+                    if (newValue.length <= FieldLengths.ARTICLE_CODE) {
+                        viewModel.onEvent(BillingEvent.ArticleSearchQueryChanged(newValue))
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)

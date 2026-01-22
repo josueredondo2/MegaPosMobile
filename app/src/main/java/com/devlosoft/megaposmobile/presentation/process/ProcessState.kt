@@ -16,5 +16,7 @@ data class ProcessState(
     val isPrinting: Boolean = false,
     // Flag to track if documents were retrieved from API before print failed
     // Used to determine isReprint value on retry: true if API succeeded but printer failed
-    val documentsRetrievedBeforeFail: Boolean = false
+    val documentsRetrievedBeforeFail: Boolean = false,
+    // Receipt text for dataphone close - allows reprinting
+    val dataphoneCloseReceiptText: String? = null
 )

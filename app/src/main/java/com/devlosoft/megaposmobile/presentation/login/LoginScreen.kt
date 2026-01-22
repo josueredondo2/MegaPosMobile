@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -142,7 +143,11 @@ fun LoginScreen(
                     // User Code Field
                     OutlinedTextField(
                         value = state.userCode,
-                        onValueChange = { viewModel.onEvent(LoginEvent.UserCodeChanged(it)) },
+                        onValueChange = { newValue ->
+                            if (newValue.length <= FieldLengths.USER_CODE) {
+                                viewModel.onEvent(LoginEvent.UserCodeChanged(newValue))
+                            }
+                        },
                         label = {
                             Text(
                                 text = "Código de Usuario",

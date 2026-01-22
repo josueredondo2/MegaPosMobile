@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 
 /**
  * Authorization dialog state
@@ -81,9 +82,11 @@ fun AuthorizationDialog(
 
                 OutlinedTextField(
                     value = userCode,
-                    onValueChange = {
-                        userCode = it
-                        if (state.error != null) onClearError()
+                    onValueChange = { newValue ->
+                        if (newValue.length <= FieldLengths.USER_CODE) {
+                            userCode = newValue
+                            if (state.error != null) onClearError()
+                        }
                     },
                     label = { Text("Usuario Autoriza") },
                     modifier = Modifier.fillMaxWidth(),

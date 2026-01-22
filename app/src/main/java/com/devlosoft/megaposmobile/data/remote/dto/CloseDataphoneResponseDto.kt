@@ -41,5 +41,8 @@ data class CloseDataphoneResponseDto(
     val netTotal: Double,
 
     @SerializedName("voucher")
-    val voucher: String?
+    val voucher: String?,
+
+    @SerializedName("closedTransactions")
+    val closedTransactions: List<ClosedTransactionSummaryDto>? = null
 )

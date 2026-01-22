@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.devlosoft.megaposmobile.core.constants.FieldLengths
 import com.devlosoft.megaposmobile.presentation.shared.components.AppHeader
 import com.devlosoft.megaposmobile.presentation.shared.components.HeaderEndContent
 import com.devlosoft.megaposmobile.ui.theme.LocalDimensions
@@ -197,7 +198,11 @@ fun ConfigurationScreen(
                     // Campo Host Name
                     OutlinedTextField(
                         value = state.hostname,
-                        onValueChange = { viewModel.onEvent(ConfigurationEvent.HostnameChanged(it)) },
+                        onValueChange = { newValue ->
+                            if (newValue.length <= FieldLengths.HOSTNAME) {
+                                viewModel.onEvent(ConfigurationEvent.HostnameChanged(newValue))
+                            }
+                        },
                         label = {
                             Text(
                                 text = "Host Name",

@@ -54,9 +54,16 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Add inactivity timeout column for session auto-logout (default 50 minutes)
+        db.execSQL("ALTER TABLE server_config ADD COLUMN inactivityTimeoutMinutes INTEGER NOT NULL DEFAULT 50")
+    }
+}
+
 @Database(
     entities = [ServerConfigEntity::class, ActiveTransactionEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class MegaPosDatabase : RoomDatabase() {
