@@ -130,15 +130,26 @@ object LocalPrintTemplates {
                 appendLine()
                 appendLine(centerText("DETALLE DE TRANSACCIONES"))
                 appendLine(SEPARATOR)
+                appendLine("Autorizacion        Tarjeta         Total")
+                appendLine(SEPARATOR)
                 for (txn in closedTransactions) {
-                    val authPart = txn.authorizationId?.let { "AUTH:$it" } ?: "AUTH: N/A"
-                    val cardPart = txn.cardNumber ?: "----"
-                    appendLine("ID:${txn.transactionId.trim()} $authPart |$cardPart")
+                    val authCode = txn.authorizationId ?: "------"
+                    val cardCode = txn.cardNumber ?: "----"
+                    val amountFormatted = "CRC ${currencyFormat.format(txn.amount)}"
+                    // Línea 1: ID y Total
+                    appendLine(formatLabelValue(txn.transactionId.trim(), amountFormatted))
+                    // Línea 2: Autorización y código de tarjeta
+                    appendLine("$authCode      $cardCode")
                     appendLine()
                 }
                 appendLine(SEPARATOR)
             }
 
+            // Espacio para firma del tesorero
+            appendLine()
+            appendLine()
+            appendLine(centerText("________________________"))
+            appendLine(centerText("Tesorero"))
             appendLine()
             appendLine()
         }

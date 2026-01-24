@@ -14,5 +14,8 @@ data class ClosedTransactionSummaryDto(
     val authorizationId: String?,
 
     @SerializedName("cardNumber")
-    val cardNumber: String?
+    val cardNumber: String?,
+
+    @SerializedName("amount")
+    val amount: Double = 0.0
 )
