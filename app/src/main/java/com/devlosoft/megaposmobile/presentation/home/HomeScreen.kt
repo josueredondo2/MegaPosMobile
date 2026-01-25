@@ -345,8 +345,8 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
                     }
 
-                    // 5. Cierre Terminal
-                    if (state.canCloseTerminal) {
+                    // 5. Cierre Terminal - COMENTADO TEMPORALMENTE
+                    /*if (state.canCloseTerminal) {
                         MenuCard(
                             icon = Icons.Default.Lock,
                             title = "Cierre Terminal",
@@ -355,7 +355,7 @@ fun HomeScreen(
                             onClick = { viewModel.onEvent(HomeEvent.RequestCloseTerminal) }
                         )
                         Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-                    }
+                    }*/
 
                     // 6. Opciones Avanzadas
                     if (state.canAdvancedOptions) {
