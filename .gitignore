@@ -12,3 +12,4 @@ local.properties
 .idea/
 /megapos-release.jks
 /.claude/agents.toml
+ARCHITECTURE.md
