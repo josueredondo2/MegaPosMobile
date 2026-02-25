@@ -3,7 +3,6 @@ package com.devlosoft.megaposmobile.presentation.home
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.core.common.Resource
 import com.devlosoft.megaposmobile.core.dataphone.DataphoneManager
 import com.devlosoft.megaposmobile.core.printer.LocalPrintTemplates
@@ -360,12 +359,6 @@ class HomeViewModel @Inject constructor(
 
     private fun checkPrinterConnection() {
         viewModelScope.launch {
-            // Skip printer test in development mode
-            if (BuildConfig.DEVELOPMENT_MODE) {
-                onNavigateToBillingCallback?.invoke()
-                return@launch
-            }
-
             _state.update { it.copy(isCheckingPrinter = true, printerError = null) }
 
             try {

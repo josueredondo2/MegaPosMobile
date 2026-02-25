@@ -4,13 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.devlosoft.megaposmobile.MainActivity
-import com.devlosoft.megaposmobile.BuildConfig
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -39,16 +37,9 @@ class DataphoneManager @Inject constructor(
     /**
      * Procesa un pago en el datáfono.
      * @param amount Monto en colones (sin decimales)
-     * @param useSimulation Forzar modo simulación (para desarrollo)
      * @return Resultado del pago
      */
-    suspend fun processPayment(amount: Long, useSimulation: Boolean = false): Result<DataphonePaymentResult> {
-        // Usar simulación si está en modo desarrollo o se fuerza
-        if (useSimulation || BuildConfig.DEVELOPMENT_MODE) {
-            Log.d(TAG, "Using simulation mode for payment of $amount")
-            return simulatePayment(amount)
-        }
-
+    suspend fun processPayment(amount: Long): Result<DataphonePaymentResult> {
         val config = serverConfigDao.getActiveServerConfigSync()
         if (config == null) {
             Log.e(TAG, "No configuration found")
@@ -56,8 +47,8 @@ class DataphoneManager @Inject constructor(
         }
 
         if (config.datafonUrl.isBlank()) {
-            Log.w(TAG, "Dataphone URL not configured, falling back to simulation")
-            return simulatePayment(amount)
+            Log.e(TAG, "Dataphone URL not configured")
+            return Result.failure(Exception("URL del datáfono no configurada"))
         }
 
         val provider = DatafonoProvider.fromString(config.datafonoProvider)
@@ -77,39 +68,6 @@ class DataphoneManager @Inject constructor(
         bringAppToFront()
 
         return result
-    }
-
-    /**
-     * Simula un pago para desarrollo/pruebas.
-     */
-    private suspend fun simulatePayment(amount: Long): Result<DataphonePaymentResult> {
-        Log.d(TAG, "Simulating payment for amount: $amount")
-        delay(500)  // Simular tiempo de respuesta
-
-        // Formatear monto como lo hace el PAX real: "CRC2,750.00"
-        val formattedAmount = String.format("%,.2f", amount.toDouble())
-
-        return Result.success(
-            DataphonePaymentResult(
-                success = true,
-                respcode = "00",
-                authorizationCode = "SIM${(100000..999999).random()}",
-                panmasked = "****${(1000..9999).random()}",
-                cardholder = "CLIENTE SIMULADO",
-                issuername = "VISA",
-                terminalid = "SIMULADOR",
-                receiptNumber = String.format("%06d", (1..999999).random()),
-                rrn = "SIM${System.currentTimeMillis() % 1000000000}",
-                stan = String.format("%06d", (1..999999).random()),
-                ticket = "SIMULACION DE PAGO\n" +
-                        "==================\n" +
-                        "MONTO: CRC $formattedAmount\n" +
-                        "VALIDO SIN FIRMA\n" +
-                        "==================",
-                totalAmount = "CRC$formattedAmount",
-                errorMessage = null
-            )
-        )
     }
 
     /**
@@ -137,16 +95,9 @@ class DataphoneManager @Inject constructor(
 
     /**
      * Ejecuta el cierre de lote del datáfono.
-     * @param useSimulation Forzar modo simulación (para desarrollo)
      * @return Resultado del cierre con totales
      */
-    suspend fun closeDataphone(useSimulation: Boolean = false): Result<DataphoneCloseResult> {
-        // Usar simulación si está en modo desarrollo o se fuerza
-        if (useSimulation || BuildConfig.DEVELOPMENT_MODE) {
-            Log.d(TAG, "Using simulation mode for dataphone close")
-            return simulateClose()
-        }
-
+    suspend fun closeDataphone(): Result<DataphoneCloseResult> {
         val config = serverConfigDao.getActiveServerConfigSync()
         if (config == null) {
             Log.e(TAG, "No configuration found")
@@ -154,8 +105,8 @@ class DataphoneManager @Inject constructor(
         }
 
         if (config.datafonUrl.isBlank()) {
-            Log.w(TAG, "Dataphone URL not configured, falling back to simulation")
-            return simulateClose()
+            Log.e(TAG, "Dataphone URL not configured")
+            return Result.failure(Exception("URL del datáfono no configurada"))
         }
 
         val provider = DatafonoProvider.fromString(config.datafonoProvider)
@@ -175,32 +126,6 @@ class DataphoneManager @Inject constructor(
         bringAppToFront()
 
         return result
-    }
-
-    /**
-     * Simula un cierre para desarrollo/pruebas.
-     */
-    private suspend fun simulateClose(): Result<DataphoneCloseResult> {
-        Log.d(TAG, "Simulating dataphone close")
-        delay(500)  // Simular tiempo de respuesta
-
-        return Result.success(
-            DataphoneCloseResult(
-                success = true,
-                terminal = "SIMULADOR",
-                batchNumber = String.format("%06d", (1..999999).random()),
-                salesCount = (1..10).random(),
-                salesTotal = (10000..500000).random().toDouble(),
-                reversalsCount = 0,
-                reversalsTotal = 0.0,
-                netTotal = (10000..500000).random().toDouble(),
-                ticket = "SIMULACION DE CIERRE\n" +
-                        "==================\n" +
-                        "CIERRE COMPLETADO\n" +
-                        "==================",
-                errorMessage = null
-            )
-        )
     }
 
     /**
