@@ -3,7 +3,6 @@ package com.devlosoft.megaposmobile.core.dataphone
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.devlosoft.megaposmobile.MainActivity
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
@@ -26,6 +25,8 @@ class DataphoneManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "DataphoneManager"
+        private const val SMARTPOS_PACKAGE = "com.kinpos.BASEA920"
+        private const val MEGAPOS_PACKAGE = "com.devlosoft.megaposmobile"
     }
 
     private val httpClient = OkHttpClient.Builder()
@@ -62,10 +63,9 @@ class DataphoneManager @Inject constructor(
             httpClient = httpClient
         )
 
+        launchApp(SMARTPOS_PACKAGE)
         val result = service.processPayment(amount)
-
-        // Traer la app al frente después del pago
-        bringAppToFront()
+        launchApp(MEGAPOS_PACKAGE)
 
         return result
     }
@@ -120,28 +120,25 @@ class DataphoneManager @Inject constructor(
             httpClient = httpClient
         )
 
+        launchApp(SMARTPOS_PACKAGE)
         val result = service.closeDataphone()
-
-        // Traer la app al frente después del cierre
-        bringAppToFront()
+        launchApp(MEGAPOS_PACKAGE)
 
         return result
     }
 
-    /**
-     * Trae la app al frente después de que el datáfono complete el pago.
-     */
-    private fun bringAppToFront() {
+    private fun launchApp(packageName: String) {
         try {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_NEW_TASK
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Log.d(TAG, "Launched $packageName")
+            } else {
+                Log.w(TAG, "Package $packageName not found")
             }
-            context.startActivity(intent)
-            Log.d(TAG, "App brought to front after payment")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to bring app to front", e)
+            Log.e(TAG, "Failed to launch $packageName", e)
         }
     }
 }
