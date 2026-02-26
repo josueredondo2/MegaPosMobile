@@ -27,7 +27,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 5
-        versionName = "1.0.0.4"
+        versionName = "1.0.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -112,6 +112,9 @@ dependencies {
 
     // Coil (async image loading)
     implementation(libs.coil.compose)
+
+    // BAC Credomatic embedded dataphone library (PAX A920)
+    implementation(files("libs/kpinvocacion.1.1.0.aar"))
 
     // Testing
     testImplementation(libs.junit)

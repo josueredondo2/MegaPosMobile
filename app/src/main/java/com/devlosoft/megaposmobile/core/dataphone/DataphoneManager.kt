@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile.core.dataphone
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -15,7 +16,8 @@ import javax.inject.Singleton
 
 /**
  * Manager/Orquestador para operaciones con el datáfono.
- * Lee la configuración de Room y delega al driver correcto.
+ * Rutea entre EmbeddedDataphoneService (PAX) y HttpDataphoneService (ZEBRA)
+ * según la configuración de readerBrand.
  */
 @Singleton
 class DataphoneManager @Inject constructor(
@@ -31,14 +33,49 @@ class DataphoneManager @Inject constructor(
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)  // PAX puede tardar en procesar
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    private var activity: Activity? = null
+    private var embeddedService: EmbeddedDataphoneService? = null
+
+    /**
+     * Conecta la Activity para el servicio embebido.
+     * Llamar desde Activity.onCreate() y onResume().
+     */
+    fun setActivity(activity: Activity) {
+        this.activity = activity
+        this.embeddedService = EmbeddedDataphoneService(activity)
+        Log.d(TAG, "Activity set for embedded dataphone service")
+    }
+
+    /**
+     * Limpia la referencia a la Activity para evitar memory leaks.
+     * Llamar desde Activity.onDestroy().
+     */
+    fun clearActivity() {
+        this.activity = null
+        this.embeddedService = null
+        Log.d(TAG, "Activity cleared")
+    }
+
+    /**
+     * Reenvía el resultado de onActivityResult al servicio embebido.
+     * Llamar desde Activity.onActivityResult().
+     */
+    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        embeddedService?.handleActivityResult(requestCode, resultCode, data)
+            ?: Log.w(TAG, "handleActivityResult called but no embedded service available")
+    }
+
+    private fun isPaxEmbedded(readerBrand: String): Boolean {
+        return readerBrand.equals("PAX", ignoreCase = true)
+    }
+
     /**
      * Procesa un pago en el datáfono.
-     * @param amount Monto en colones (sin decimales)
-     * @return Resultado del pago
+     * PAX → embebido (KP_Invocador), ZEBRA → HTTP
      */
     suspend fun processPayment(amount: Long): Result<DataphonePaymentResult> {
         val config = serverConfigDao.getActiveServerConfigSync()
@@ -47,13 +84,22 @@ class DataphoneManager @Inject constructor(
             return Result.failure(Exception("Configuración del servidor no encontrada"))
         }
 
+        if (isPaxEmbedded(config.readerBrand)) {
+            val service = embeddedService
+                ?: return Result.failure(Exception("Servicio embebido no disponible. Reinicie la aplicación."))
+
+            Log.d(TAG, "Processing payment via EMBEDDED: amount=$amount")
+            return service.processPayment(amount)
+        }
+
+        // HTTP path (ZEBRA)
         if (config.datafonUrl.isBlank()) {
             Log.e(TAG, "Dataphone URL not configured")
             return Result.failure(Exception("URL del datáfono no configurada"))
         }
 
         val provider = DatafonoProvider.fromString(config.datafonoProvider)
-        Log.d(TAG, "Processing payment: amount=$amount, provider=$provider, url=${config.datafonUrl}")
+        Log.d(TAG, "Processing payment via HTTP: amount=$amount, provider=$provider, url=${config.datafonUrl}")
 
         val driver = driverFactory.createDriver(provider)
 
@@ -72,11 +118,19 @@ class DataphoneManager @Inject constructor(
 
     /**
      * Prueba la conexión con el datáfono.
+     * PAX → verifica que la app BAC esté instalada, ZEBRA → HTTP ping
      */
     suspend fun testConnection(): Result<String> {
         val config = serverConfigDao.getActiveServerConfigSync()
             ?: return Result.failure(Exception("Configuración no encontrada"))
 
+        if (isPaxEmbedded(config.readerBrand)) {
+            val service = embeddedService
+                ?: return Result.failure(Exception("Servicio embebido no disponible. Reinicie la aplicación."))
+            return service.testConnection()
+        }
+
+        // HTTP path (ZEBRA)
         if (config.datafonUrl.isBlank()) {
             return Result.failure(Exception("URL del datáfono no configurada"))
         }
@@ -95,7 +149,7 @@ class DataphoneManager @Inject constructor(
 
     /**
      * Ejecuta el cierre de lote del datáfono.
-     * @return Resultado del cierre con totales
+     * PAX → embebido (KP_Invocador), ZEBRA → HTTP
      */
     suspend fun closeDataphone(): Result<DataphoneCloseResult> {
         val config = serverConfigDao.getActiveServerConfigSync()
@@ -104,13 +158,22 @@ class DataphoneManager @Inject constructor(
             return Result.failure(Exception("Configuración del servidor no encontrada"))
         }
 
+        if (isPaxEmbedded(config.readerBrand)) {
+            val service = embeddedService
+                ?: return Result.failure(Exception("Servicio embebido no disponible. Reinicie la aplicación."))
+
+            Log.d(TAG, "Closing dataphone via EMBEDDED")
+            return service.closeDataphone()
+        }
+
+        // HTTP path (ZEBRA)
         if (config.datafonUrl.isBlank()) {
             Log.e(TAG, "Dataphone URL not configured")
             return Result.failure(Exception("URL del datáfono no configurada"))
         }
 
         val provider = DatafonoProvider.fromString(config.datafonoProvider)
-        Log.d(TAG, "Closing dataphone: provider=$provider, url=${config.datafonUrl}")
+        Log.d(TAG, "Closing dataphone via HTTP: provider=$provider, url=${config.datafonUrl}")
 
         val driver = driverFactory.createDriver(provider)
 

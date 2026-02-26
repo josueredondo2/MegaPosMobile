@@ -1,5 +1,6 @@
 package com.devlosoft.megaposmobile
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.devlosoft.megaposmobile.core.dataphone.DataphoneManager
 import com.devlosoft.megaposmobile.core.session.InactivityManager
 import com.devlosoft.megaposmobile.core.state.StationStatus
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
@@ -40,8 +42,12 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var serverConfigDao: ServerConfigDao
 
+    @Inject
+    lateinit var dataphoneManager: DataphoneManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        dataphoneManager.setActivity(this)
         enableEdgeToEdge()
         setContent {
             MegaPosMobileTheme {
@@ -89,9 +95,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        dataphoneManager.setActivity(this)
+    }
+
     override fun onPause() {
         super.onPause()
         inactivityManager.onAppBackground()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        dataphoneManager.clearActivity()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        dataphoneManager.handleActivityResult(requestCode, resultCode, data)
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
