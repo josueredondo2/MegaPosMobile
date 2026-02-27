@@ -46,8 +46,14 @@ class DataphoneManager @Inject constructor(
      */
     fun setActivity(activity: Activity) {
         this.activity = activity
-        this.embeddedService = EmbeddedDataphoneService(activity)
-        Log.d(TAG, "Activity set for embedded dataphone service")
+        val existing = this.embeddedService
+        if (existing != null) {
+            existing.updateActivity(activity)
+            Log.d(TAG, "Activity updated for existing embedded dataphone service")
+        } else {
+            this.embeddedService = EmbeddedDataphoneService(activity)
+            Log.d(TAG, "Activity set - new embedded dataphone service created")
+        }
     }
 
     /**

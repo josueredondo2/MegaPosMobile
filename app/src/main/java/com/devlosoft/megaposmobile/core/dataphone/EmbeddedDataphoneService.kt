@@ -3,6 +3,11 @@ package com.devlosoft.megaposmobile.core.dataphone
 import android.app.Activity
 import android.content.Intent
 import android.util.Log
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.devlosoft.megaposmobile.core.dataphone.drivers.PaxBacDriver
 import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
@@ -18,7 +23,7 @@ import kotlinx.coroutines.CompletableDeferred
  * mientras que nuestro código usa coroutines. CompletableDeferred conecta ambos mundos.
  */
 class EmbeddedDataphoneService(
-    private val activity: Activity
+    private var activity: Activity
 ) : DataphoneService {
 
     companion object {
@@ -28,6 +33,13 @@ class EmbeddedDataphoneService(
 
     private var pendingPaymentDeferred: CompletableDeferred<Result<DataphonePaymentResult>>? = null
     private var pendingCloseDeferred: CompletableDeferred<Result<DataphoneCloseResult>>? = null
+
+    /**
+     * Actualiza la referencia de Activity sin perder los Deferred pendientes.
+     */
+    fun updateActivity(activity: Activity) {
+        this.activity = activity
+    }
 
     override suspend fun processPayment(amount: Long): Result<DataphonePaymentResult> {
         // Cancel any previous pending operation
@@ -48,7 +60,7 @@ class EmbeddedDataphoneService(
             // KP_Sale(user, password, deviceID, monto, montoTIP, montoTAX, email, codigoMoneda, showMessages)
             // user/password/deviceID se pasan vacíos (no aplican en modo embebido según documentación)
             // codigoMoneda "0188" = CRC (Costa Rica Colones)
-            kpInvocador.KP_Sale("", "", "", amountInCents, 0, 0, "", "0188", false)
+            kpInvocador.KP_Sale("", "", "", amountInCents, 0, 0, "", "0188", true)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error launching KP_Sale", e)
@@ -110,25 +122,45 @@ class EmbeddedDataphoneService(
      * Parsea el resultado del Intent y completa el Deferred correspondiente.
      */
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        Log.d(TAG, "handleActivityResult: requestCode=$requestCode, resultCode=$resultCode")
+        Log.d(TAG, "handleActivityResult: requestCode=$requestCode, resultCode=$resultCode, " +
+                "pendingPayment=${pendingPaymentDeferred != null}, pendingClose=${pendingCloseDeferred != null}")
+
+        if (data?.extras != null) {
+            val keys = data.extras!!.keySet().joinToString()
+            Log.d(TAG, "Intent extras keys: $keys")
+        } else {
+            Log.w(TAG, "Intent data or extras is null")
+        }
 
         try {
             val kpInvocador = KP_Invocador(SMARTPOS_PACKAGE, activity)
             val resultado = kpInvocador.getResults(requestCode, resultCode, data)
 
+            if (resultado != null) {
+                Log.d(TAG, "Trans_Results class: ${resultado::class.java.name}")
+            }
+
             // Sale result
-            if (requestCode == KP_Invocador.PROCESSREQUESTSALE) {
+            if (requestCode == KP_Invocador.PROCESSREQUESTSALE && pendingPaymentDeferred != null) {
                 handleSaleResult(resultCode, data, resultado)
                 return
             }
 
-            // Close result - KP_Close doesn't have a constant, use the remaining deferred
+            // Close result - route by pending deferred since KP_Close uses a different requestCode
             if (pendingCloseDeferred != null) {
+                Log.d(TAG, "Routing to close handler for requestCode=$requestCode")
                 handleCloseResult(resultCode, data)
                 return
             }
 
-            Log.w(TAG, "Unhandled requestCode: $requestCode")
+            // Fallback: try payment if deferred exists
+            if (pendingPaymentDeferred != null) {
+                Log.d(TAG, "Routing to sale handler (fallback) for requestCode=$requestCode")
+                handleSaleResult(resultCode, data, resultado)
+                return
+            }
+
+            Log.w(TAG, "Unhandled requestCode: $requestCode (no pending deferreds)")
         } catch (e: Exception) {
             Log.e(TAG, "Error in handleActivityResult", e)
             pendingPaymentDeferred?.complete(
@@ -155,7 +187,7 @@ class EmbeddedDataphoneService(
 
         val extras = data.extras
         val respCode = extras?.getString("RESPCODE") ?: ""
-        val authorization = extras?.getString("AUTORIZACION") ?: ""
+        val authorization = extras?.getString("AUTORIZATION") ?: ""
         val panMasked = extras?.getString("PANMASKED") ?: ""
         val cardHolder = extras?.getString("CARDHOLDER") ?: ""
         val terminalId = extras?.getString("TERMINALID") ?: ""
@@ -208,16 +240,14 @@ class EmbeddedDataphoneService(
 
         val extras = data.extras
         val respCode = extras?.getString("RESPCODE") ?: ""
-        val ticket = extras?.getString("TICKET") ?: ""
-        val terminalId = extras?.getString("TERMINALID") ?: ""
+        val totalField = extras?.getString("TOTAL") ?: ""
 
-        Log.d(TAG, "Close result: respCode=$respCode, ticket length=${ticket.length}")
+        Log.d(TAG, "Close result: respCode=$respCode, TOTAL=$totalField")
 
         val success = respCode == "00"
 
         if (success) {
-            // Parse the ticket to extract close totals (same format as HTTP response)
-            val closeResult = parseCloseTicket(ticket, terminalId)
+            val closeResult = parseCloseTotalField(totalField)
             deferred.complete(Result.success(closeResult))
         } else {
             deferred.complete(Result.failure(
@@ -227,37 +257,64 @@ class EmbeddedDataphoneService(
     }
 
     /**
-     * Parsea el TICKET del cierre para extraer datos estructurados.
-     * Reutiliza la misma lógica que PaxBacDriver pero aplicada al ticket del Intent.
+     * Parsea el campo TOTAL del Intent de cierre.
+     *
+     * Formato CSV por acquirer, separados por '|':
+     *   terminalId,moneda,salesCount,salesTotalCents,merchantId,batchNumber,?,reversalsCount,reversalsTotalCents
+     *
+     * Ejemplo:
+     *   EMVPOS29,COLONES   ,0001,000000050000,000000011813003,000003,null,0000,000000000000|
      */
-    private fun parseCloseTicket(ticket: String, terminalId: String): DataphoneCloseResult {
+    private fun parseCloseTotalField(totalField: String): DataphoneCloseResult {
+        var terminalId = ""
+        var merchantId = ""
         var batchNumber = ""
         var salesCount = 0
         var salesTotal = 0.0
+        var reversalsCount = 0
+        var reversalsTotal = 0.0
 
-        if (ticket.isNotEmpty()) {
-            val normalizedTicket = ticket.replace("\\n", "\n").replace("|", "\n")
-            val lines = normalizedTicket.split("\n").filter { it.isNotBlank() }
+        if (totalField.isNotEmpty()) {
+            val acquirers = totalField.split("|").filter { it.isNotBlank() }
 
-            for (line in lines) {
-                val cleanLine = line.trim().trimStart('s').trim()
-
-                if (cleanLine.contains("Lote:")) {
-                    val loteRegex = Regex("Lote:\\s*(\\d+)")
-                    loteRegex.find(cleanLine)?.let { match ->
-                        batchNumber = match.groupValues[1]
-                    }
+            for (acquirer in acquirers) {
+                val parts = acquirer.split(",").map { it.trim() }
+                if (parts.size < 9) {
+                    Log.w(TAG, "TOTAL acquirer has ${parts.size} fields, expected 9: $acquirer")
+                    continue
                 }
 
-                if (cleanLine.startsWith("VENTAS")) {
-                    val ventasRegex = Regex("VENTAS\\s+(\\d+)\\s+CRC([\\d,\\.]+)")
-                    ventasRegex.find(cleanLine)?.let { match ->
-                        salesCount = match.groupValues[1].toIntOrNull() ?: 0
-                        salesTotal = match.groupValues[2].replace(",", "").toDoubleOrNull() ?: 0.0
-                    }
-                }
+                if (terminalId.isEmpty()) terminalId = parts[0]
+                if (merchantId.isEmpty()) merchantId = parts[4]
+                if (batchNumber.isEmpty()) batchNumber = parts[5]
+
+                salesCount += parts[2].toIntOrNull() ?: 0
+                salesTotal += (parts[3].toLongOrNull() ?: 0L) / 100.0
+                reversalsCount += parts[7].toIntOrNull() ?: 0
+                reversalsTotal += (parts[8].toLongOrNull() ?: 0L) / 100.0
             }
         }
+
+        val netTotal = salesTotal - reversalsTotal
+
+        // Build a synthetic ticket matching the format the backend ParseCloseTicket expects:
+        //   "TERMINAL ID LOGOSALE {merchantId}"
+        //   "Fecha: dd/MM/yyyy Hora: HH:mm Lote: {batch}"
+        //   "VENTAS {count} CRC{amount}"
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "CR"))
+        val timeFormat = SimpleDateFormat("HH:mm", Locale("es", "CR"))
+        val now = Date()
+        val amountSymbols = DecimalFormatSymbols(Locale.US).apply { groupingSeparator = ',' }
+        val amountFormat = DecimalFormat("#,##0.00", amountSymbols)
+
+        val syntheticTicket = buildString {
+            append("TERMINAL ID LOGOSALE $merchantId\\n")
+            append("Fecha: ${dateFormat.format(now)} Hora: ${timeFormat.format(now)} Lote: $batchNumber\\n")
+            append("VENTAS %04d CRC%s".format(salesCount, amountFormat.format(salesTotal)))
+        }
+
+        Log.d(TAG, "Parsed close: terminal=$terminalId, batch=$batchNumber, " +
+                "sales=$salesCount/$salesTotal, reversals=$reversalsCount/$reversalsTotal, net=$netTotal")
 
         return DataphoneCloseResult(
             success = true,
@@ -265,10 +322,10 @@ class EmbeddedDataphoneService(
             batchNumber = batchNumber,
             salesCount = salesCount,
             salesTotal = salesTotal,
-            reversalsCount = 0,
-            reversalsTotal = 0.0,
-            netTotal = salesTotal,
-            ticket = ticket,
+            reversalsCount = reversalsCount,
+            reversalsTotal = reversalsTotal,
+            netTotal = netTotal,
+            ticket = syntheticTicket,
             errorMessage = null
         )
     }
