@@ -22,6 +22,7 @@ class ScannerDriverFactory @Inject constructor() {
         return when (brand) {
             ReaderBrand.ZEBRA -> ZebraScannerDriver()
             ReaderBrand.PAX -> PaxScannerDriver()
+            ReaderBrand.SIMULADO -> ZebraScannerDriver()
         }
     }
 }
