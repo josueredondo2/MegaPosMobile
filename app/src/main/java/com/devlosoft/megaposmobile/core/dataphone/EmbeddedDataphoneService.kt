@@ -194,7 +194,13 @@ class EmbeddedDataphoneService(
         val rrn = extras?.getString("RRN")?.trim() ?: ""
         val stan = extras?.getString("STAN") ?: ""
         val recibo = extras?.getLong("RECIBO", 0)?.toString() ?: "0"
-        val totalAmount = extras?.getLong("TOTAL_AMOUNT", 0)?.toString() ?: "0"
+        val totalAmountCents = extras?.getLong("TOTAL_AMOUNT", 0) ?: 0L
+        val totalAmount = if (totalAmountCents > 0) {
+            val amountDecimal = totalAmountCents / 100.0
+            "CRC${String.format(Locale.US, "%,.2f", amountDecimal)}"
+        } else {
+            "0"
+        }
         val ticket = extras?.getString("TICKET") ?: ""
 
         Log.d(TAG, "Sale result: respCode=$respCode, auth=$authorization, recibo=$recibo, stan=$stan")

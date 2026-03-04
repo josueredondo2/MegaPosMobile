@@ -543,13 +543,13 @@ class BillingViewModel @Inject constructor(
                     }
                     is Resource.Success -> {
                         val customers = result.data ?: emptyList()
-                        val selectedCustomer = if (customers.size == 1) customers.first() else null
+                        val autoSelected = if (customers.size == 1) customers.first() else null
 
                         _state.update {
                             it.copy(
                                 isSearchingCustomer = false,
                                 customers = customers,
-                                selectedCustomer = selectedCustomer
+                                selectedCustomer = autoSelected ?: if (it.transactionCode.isNotBlank()) it.selectedCustomer else null
                             )
                         }
                     }
@@ -558,7 +558,7 @@ class BillingViewModel @Inject constructor(
                             it.copy(
                                 isSearchingCustomer = false,
                                 customers = emptyList(),
-                                selectedCustomer = null,
+                                selectedCustomer = if (it.transactionCode.isNotBlank()) it.selectedCustomer else null,
                                 customerSearchError = result.message
                             )
                         }
