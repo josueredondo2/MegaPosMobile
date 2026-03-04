@@ -224,8 +224,10 @@ class BillingViewModel @Inject constructor(
                 _state.update { it.copy(finalizeTransactionError = null) }
             }
             is BillingEvent.ResetForNewTransaction -> {
-                // Reset all state for a new transaction
-                _state.value = BillingState()
+                // Only reset if there's no active transaction to preserve
+                if (_state.value.transactionCode.isBlank()) {
+                    _state.value = BillingState()
+                }
             }
             is BillingEvent.GoBack -> {
                 // Handle in screen
