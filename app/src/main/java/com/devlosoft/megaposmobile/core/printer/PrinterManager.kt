@@ -4,7 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.PrinterModel
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,6 +39,12 @@ class PrinterManager @Inject constructor(
             )
         }
 
+        if (isSimulated(config.readerBrand)) {
+            Log.d(TAG, "Simulated printer connection test - OK")
+            delay(500)
+            return Result.success("Conexión simulada de impresora exitosa")
+        }
+
         val printerService = createPrinterService(
             usePrinterIp = config.usePrinterIp,
             printerIp = config.printerIp,
@@ -60,6 +68,12 @@ class PrinterManager @Inject constructor(
             return Result.failure(
                 Exception("No hay configuración de impresora.")
             )
+        }
+
+        if (isSimulated(config.readerBrand)) {
+            Log.d(TAG, "Simulated print - text length: ${text.length}")
+            delay(500)
+            return Result.success("Impresión simulada exitosa")
         }
 
         val printerModel = PrinterModel.fromString(config.printerModel)
@@ -97,6 +111,10 @@ class PrinterManager @Inject constructor(
         )
 
         return printerService.printText(text, printerModel)
+    }
+
+    private fun isSimulated(readerBrand: String): Boolean {
+        return readerBrand.equals(ReaderBrand.SIMULADO.name, ignoreCase = true)
     }
 
     /**

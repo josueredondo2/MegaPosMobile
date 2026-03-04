@@ -8,8 +8,13 @@ import com.devlosoft.megaposmobile.data.local.dao.ServerConfigDao
 import com.devlosoft.megaposmobile.domain.model.DatafonoProvider
 import com.devlosoft.megaposmobile.domain.model.DataphoneCloseResult
 import com.devlosoft.megaposmobile.domain.model.DataphonePaymentResult
+import com.devlosoft.megaposmobile.domain.model.ReaderBrand
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -79,6 +84,10 @@ class DataphoneManager @Inject constructor(
         return readerBrand.equals("PAX", ignoreCase = true)
     }
 
+    private fun isSimulated(readerBrand: String): Boolean {
+        return readerBrand.equals(ReaderBrand.SIMULADO.name, ignoreCase = true)
+    }
+
     /**
      * Procesa un pago en el datáfono.
      * PAX → embebido (KP_Invocador), ZEBRA → HTTP
@@ -88,6 +97,28 @@ class DataphoneManager @Inject constructor(
         if (config == null) {
             Log.e(TAG, "No configuration found")
             return Result.failure(Exception("Configuración del servidor no encontrada"))
+        }
+
+        if (isSimulated(config.readerBrand)) {
+            Log.d(TAG, "Processing payment via SIMULATED: amount=$amount")
+            delay(2000)
+            val timestamp = SimpleDateFormat("HHmmss", Locale.getDefault()).format(Date())
+            return Result.success(
+                DataphonePaymentResult(
+                    success = true,
+                    respcode = "00",
+                    authorizationCode = "SIM$timestamp",
+                    panmasked = "411111******1111",
+                    cardholder = "TARJETA SIMULADA",
+                    issuername = "VISA",
+                    terminalid = "SIM00001",
+                    receiptNumber = timestamp,
+                    rrn = "SIM$timestamp",
+                    stan = timestamp.takeLast(6),
+                    ticket = "SIMULADO - PAGO APROBADO",
+                    totalAmount = amount.toString()
+                )
+            )
         }
 
         if (isPaxEmbedded(config.readerBrand)) {
@@ -130,6 +161,12 @@ class DataphoneManager @Inject constructor(
         val config = serverConfigDao.getActiveServerConfigSync()
             ?: return Result.failure(Exception("Configuración no encontrada"))
 
+        if (isSimulated(config.readerBrand)) {
+            Log.d(TAG, "Testing connection via SIMULATED")
+            delay(1000)
+            return Result.success("Conexión simulada exitosa")
+        }
+
         if (isPaxEmbedded(config.readerBrand)) {
             val service = embeddedService
                 ?: return Result.failure(Exception("Servicio embebido no disponible. Reinicie la aplicación."))
@@ -162,6 +199,24 @@ class DataphoneManager @Inject constructor(
         if (config == null) {
             Log.e(TAG, "No configuration found")
             return Result.failure(Exception("Configuración del servidor no encontrada"))
+        }
+
+        if (isSimulated(config.readerBrand)) {
+            Log.d(TAG, "Closing dataphone via SIMULATED")
+            delay(2000)
+            return Result.success(
+                DataphoneCloseResult(
+                    success = true,
+                    terminal = "SIM00001",
+                    batchNumber = "000",
+                    salesCount = 0,
+                    salesTotal = 0.0,
+                    reversalsCount = 0,
+                    reversalsTotal = 0.0,
+                    netTotal = 0.0,
+                    ticket = "SIMULADO - CIERRE EXITOSO"
+                )
+            )
         }
 
         if (isPaxEmbedded(config.readerBrand)) {

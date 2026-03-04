@@ -196,58 +196,7 @@ fun AdvancedOptionsScreen(
 
                     Spacer(modifier = Modifier.height(dimensions.spacerMedium))
 
-                    // Datafono URL Field
-                    OutlinedTextField(
-                        value = state.datafonUrl,
-                        onValueChange = { viewModel.onEvent(AdvancedOptionsEvent.DatafonUrlChanged(it)) },
-                        label = {
-                            Text(
-                                text = "Dirección URL Datafono",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        placeholder = {
-                            Text(
-                                text = "http://192.168.1.100:8080",
-                                fontSize = dimensions.fontSizeMedium
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(dimensions.textFieldHeight),
-                        enabled = !state.isLoading,
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontSize = dimensions.fontSizeMedium
-                        ),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MegaSuperRed,
-                            focusedLabelColor = MegaSuperRed,
-                            cursorColor = MegaSuperRed
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Uri,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    // Datafono Provider Dropdown
-                    DatafonoProviderSelector(
-                        selectedProvider = state.datafonoProvider,
-                        onProviderSelected = { provider ->
-                            viewModel.onEvent(AdvancedOptionsEvent.DatafonoProviderChanged(provider))
-                        },
-                        enabled = !state.isLoading
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                    // Reader Brand Dropdown
+                    // Reader Brand Dropdown (moved before URL/provider so hiding logic is clearer)
                     ReaderBrandSelector(
                         selectedBrand = state.readerBrand,
                         onBrandSelected = { brand ->
@@ -255,6 +204,59 @@ fun AdvancedOptionsScreen(
                         },
                         enabled = !state.isLoading
                     )
+
+                    if (state.readerBrand != ReaderBrand.SIMULADO) {
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                        // Datafono URL Field
+                        OutlinedTextField(
+                            value = state.datafonUrl,
+                            onValueChange = { viewModel.onEvent(AdvancedOptionsEvent.DatafonUrlChanged(it)) },
+                            label = {
+                                Text(
+                                    text = "Dirección URL Datafono",
+                                    fontSize = dimensions.fontSizeMedium
+                                )
+                            },
+                            placeholder = {
+                                Text(
+                                    text = "http://192.168.1.100:8080",
+                                    fontSize = dimensions.fontSizeMedium
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(dimensions.textFieldHeight),
+                            enabled = !state.isLoading,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = dimensions.fontSizeMedium
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MegaSuperRed,
+                                focusedLabelColor = MegaSuperRed,
+                                cursorColor = MegaSuperRed
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                        // Datafono Provider Dropdown
+                        DatafonoProviderSelector(
+                            selectedProvider = state.datafonoProvider,
+                            onProviderSelected = { provider ->
+                                viewModel.onEvent(AdvancedOptionsEvent.DatafonoProviderChanged(provider))
+                            },
+                            enabled = !state.isLoading
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
