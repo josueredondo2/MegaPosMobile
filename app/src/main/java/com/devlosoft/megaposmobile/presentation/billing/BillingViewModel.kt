@@ -1227,7 +1227,7 @@ class BillingViewModel @Inject constructor(
 
     private fun handleChangeQuantityRequest(itemId: String, itemName: String) {
         // Find the item to get lineNumber and current quantity
-        val item = _state.value.invoiceData.items.find { it.itemId == itemId }
+        val item = _state.value.invoiceData.items.find { it.itemId == itemId && !it.isDeleted }
         if (item == null) {
             Log.e(TAG, "Item not found: $itemId")
             return
@@ -1434,7 +1434,7 @@ class BillingViewModel @Inject constructor(
             }
         } else {
             // Find the item if not already in state
-            val item = _state.value.invoiceData.items.find { it.itemId == itemId }
+            val item = _state.value.invoiceData.items.find { it.itemId == itemId && !it.isDeleted }
             if (item != null) {
                 showChangeQuantityDialog(itemId, item.itemName, item.lineItemSequence, item.quantity, authorizedBy)
             } else {
