@@ -157,4 +157,104 @@ class NetworkPrinterService(
                 }
             }
         }
+
+    override suspend fun sendRawCommand(command: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "========== sendRawCommand START ==========")
+            Log.d(TAG, "Printer IP: $printerIp")
+            Log.d(TAG, "Command: $command")
+
+            var socket: Socket? = null
+            var outputStream: OutputStream? = null
+
+            try {
+                if (printerIp.isBlank()) {
+                    return@withContext Result.failure(
+                        Exception("La IP de la impresora no está configurada.")
+                    )
+                }
+
+                socket = Socket()
+                socket.connect(InetSocketAddress(printerIp, PRINTER_PORT), CONNECTION_TIMEOUT)
+                outputStream = socket.getOutputStream()
+
+                val commandBytes = command.toByteArray(Charsets.US_ASCII)
+                outputStream.write(commandBytes)
+                outputStream.flush()
+
+                Thread.sleep(500)
+
+                Log.d(TAG, "========== sendRawCommand END (success) ==========")
+                Result.success("Comando enviado exitosamente")
+
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.e(TAG, "SocketTimeoutException: ${e.message}", e)
+                Result.failure(
+                    Exception("Tiempo de conexión agotado. Verifique la IP y que la impresora esté en la red.")
+                )
+            } catch (e: java.net.ConnectException) {
+                Log.e(TAG, "ConnectException: ${e.message}", e)
+                Result.failure(
+                    Exception("No se pudo conectar a la impresora. Verifique la IP: $printerIp")
+                )
+            } catch (e: IOException) {
+                Log.e(TAG, "IOException: ${e.message}", e)
+                Result.failure(Exception("Error de conexión: ${e.message}"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected exception: ${e.message}", e)
+                Result.failure(Exception("Error inesperado: ${e.message}"))
+            } finally {
+                try {
+                    outputStream?.close()
+                    socket?.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing resources: ${e.message}")
+                }
+            }
+        }
+
+    override suspend fun queryPrinter(command: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "========== queryPrinter START ==========")
+            Log.d(TAG, "Query: $command")
+
+            var socket: Socket? = null
+
+            try {
+                if (printerIp.isBlank()) {
+                    return@withContext Result.failure(
+                        Exception("La IP de la impresora no está configurada.")
+                    )
+                }
+
+                socket = Socket()
+                socket.connect(InetSocketAddress(printerIp, PRINTER_PORT), CONNECTION_TIMEOUT)
+                socket.soTimeout = 3000
+
+                val outputStream = socket.getOutputStream()
+                outputStream.write(command.toByteArray(Charsets.US_ASCII))
+                outputStream.flush()
+
+                Thread.sleep(500)
+
+                val inputStream = socket.getInputStream()
+                val buffer = ByteArray(1024)
+                val bytesRead = inputStream.read(buffer)
+                val response = if (bytesRead > 0) {
+                    String(buffer, 0, bytesRead, Charsets.US_ASCII).trim()
+                } else {
+                    ""
+                }
+
+                Log.d(TAG, "Response: $response")
+                Log.d(TAG, "========== queryPrinter END (success) ==========")
+                Result.success(response)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "queryPrinter error: ${e.message}", e)
+                Result.failure(Exception("Error consultando impresora: ${e.message}"))
+            } finally {
+                try { socket?.close() } catch (_: Exception) {}
+            }
+        }
 }

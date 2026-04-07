@@ -202,4 +202,124 @@ class BluetoothPrinterServiceImpl(
                 }
             }
         }
+
+    override suspend fun sendRawCommand(command: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "========== sendRawCommand START ==========")
+            Log.d(TAG, "Device address: $deviceAddress")
+            Log.d(TAG, "Command: $command")
+
+            var socket: BluetoothSocket? = null
+            var outputStream: OutputStream? = null
+
+            try {
+                if (deviceAddress.isBlank()) {
+                    return@withContext Result.failure(
+                        Exception("El dispositivo Bluetooth no está configurado.")
+                    )
+                }
+
+                val device: BluetoothDevice? = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+                if (device == null) {
+                    return@withContext Result.failure(
+                        Exception("Dispositivo Bluetooth no encontrado")
+                    )
+                }
+
+                socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+
+                try {
+                    bluetoothAdapter?.cancelDiscovery()
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Could not cancel discovery: ${e.message}")
+                }
+
+                socket.connect()
+                outputStream = socket.outputStream
+
+                val commandBytes = command.toByteArray(Charsets.US_ASCII)
+                outputStream.write(commandBytes)
+                outputStream.flush()
+
+                Thread.sleep(500)
+
+                Log.d(TAG, "========== sendRawCommand END (success) ==========")
+                Result.success("Comando enviado exitosamente")
+
+            } catch (e: IOException) {
+                Log.e(TAG, "IOException: ${e.message}", e)
+                Result.failure(Exception("Error de conexión: ${e.message}"))
+            } catch (e: SecurityException) {
+                Log.e(TAG, "SecurityException: ${e.message}", e)
+                Result.failure(Exception("Permisos de Bluetooth no concedidos"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected exception: ${e.message}", e)
+                Result.failure(Exception("Error inesperado: ${e.message}"))
+            } finally {
+                try {
+                    outputStream?.close()
+                    socket?.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing resources: ${e.message}")
+                }
+            }
+        }
+
+    override suspend fun queryPrinter(command: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "========== queryPrinter START ==========")
+            Log.d(TAG, "Query: $command")
+
+            var socket: BluetoothSocket? = null
+
+            try {
+                if (deviceAddress.isBlank()) {
+                    return@withContext Result.failure(
+                        Exception("El dispositivo Bluetooth no está configurado.")
+                    )
+                }
+
+                val device: BluetoothDevice? = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+                if (device == null) {
+                    return@withContext Result.failure(
+                        Exception("Dispositivo Bluetooth no encontrado")
+                    )
+                }
+
+                socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+
+                try {
+                    bluetoothAdapter?.cancelDiscovery()
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Could not cancel discovery: ${e.message}")
+                }
+
+                socket.connect()
+
+                val outputStream = socket.outputStream
+                outputStream.write(command.toByteArray(Charsets.US_ASCII))
+                outputStream.flush()
+
+                Thread.sleep(500)
+
+                val inputStream = socket.inputStream
+                val buffer = ByteArray(1024)
+                val bytesRead = inputStream.read(buffer)
+                val response = if (bytesRead > 0) {
+                    String(buffer, 0, bytesRead, Charsets.US_ASCII).trim()
+                } else {
+                    ""
+                }
+
+                Log.d(TAG, "Response: $response")
+                Log.d(TAG, "========== queryPrinter END (success) ==========")
+                Result.success(response)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "queryPrinter error: ${e.message}", e)
+                Result.failure(Exception("Error consultando impresora: ${e.message}"))
+            } finally {
+                try { socket?.close() } catch (_: Exception) {}
+            }
+        }
 }

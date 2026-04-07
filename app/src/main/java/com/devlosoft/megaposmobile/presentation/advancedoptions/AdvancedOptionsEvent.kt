@@ -25,6 +25,11 @@ sealed class AdvancedOptionsEvent {
     data class OnPermissionsResult(val granted: Boolean) : AdvancedOptionsEvent()
 
     // Actions
+    data object ConfigureHabladores : AdvancedOptionsEvent()
+    data object ConfigureMegaPos : AdvancedOptionsEvent()
+    data object TestCpcl1x2 : AdvancedOptionsEvent()
+    data object TestCpcl2x3 : AdvancedOptionsEvent()
+    data object TestCpcl7x10 : AdvancedOptionsEvent()
     data object TestPrinter : AdvancedOptionsEvent()
     data object Save : AdvancedOptionsEvent()
     data object ClearError : AdvancedOptionsEvent()
