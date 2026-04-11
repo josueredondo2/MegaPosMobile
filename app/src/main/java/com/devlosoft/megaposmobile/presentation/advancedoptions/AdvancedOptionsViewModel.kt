@@ -316,7 +316,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                         appendLine("T90 7 1 53 23 AHORRO:")
                         // ahorro valor (font=4, size=0, x=58, y=23)
                         appendLine("LEFT 102")
-                        appendLine("T90 4 0 58 23 100")
+                        appendLine("T90 4 0 58 23  100")
                         // | (font=4, size=0, x=58, y=23)
                         appendLine("LEFT 102")
                         appendLine("T90 4 0 58 23 |")
@@ -358,7 +358,7 @@ class AdvancedOptionsViewModel @Inject constructor(
                         appendLine("T90 7 1 53 96 PRECIO REGULAR:")
                         // precio regular (font=4, size=0, x=58, y=96)
                         appendLine("LEFT 102")
-                        appendLine("T90 4 0 58 96 570")
+                        appendLine("T90 4 0 58 96  570")
                         // | (font=4, size=0, x=58, y=96)
                         appendLine("LEFT 102")
                         appendLine("T90 4 0 58 96 |")
@@ -435,8 +435,8 @@ class AdvancedOptionsViewModel @Inject constructor(
                         appendLine("! U1 setvar \"media.type\" \"label\"")
                         appendLine("! U1 setvar \"media.sense_mode\" \"bar\"")
                         appendLine("! U1 setvar \"media.printmode\" \"tear off\"")
-                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"calibration\"")
-                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"calibration\"")
+                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"calibrate\"")
+                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"calibrate\"")
                         appendLine("! U1 setvar \"device.reset\" \"\"")
                     }
                 } else {
@@ -445,8 +445,8 @@ class AdvancedOptionsViewModel @Inject constructor(
                         appendLine("! U1 setvar \"device.pnp_option\" \"zpl\"")
                         appendLine("! U1 setvar \"media.type\" \"journal\"")
                         appendLine("! U1 setvar \"media.printmode\" \"tear off\"")
-                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"feed\"")
-                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"feed\"")
+                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"no motion\"")
+                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"no motion\"")
                         appendLine("! U1 setvar \"device.reset\" \"\"")
                     }
                 }
