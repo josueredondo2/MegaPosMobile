@@ -484,56 +484,6 @@ fun AdvancedOptionsScreen(
                         }
                     }
 
-                    // CPCL Test Buttons (temporary)
-                    if (state.printerModel == PrinterModel.ZEBRA_ZQ511) {
-                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
-
-                        Text(
-                            text = "Test Habladores CPCL",
-                            fontSize = dimensions.fontSizeMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-                        ) {
-                            androidx.compose.material3.OutlinedButton(
-                                onClick = { viewModel.onEvent(AdvancedOptionsEvent.TestCpcl1x2) },
-                                modifier = Modifier.weight(1f).height(dimensions.buttonHeight),
-                                enabled = !state.isLoading && !state.isTestingPrinter && !state.isConfiguringPrinter,
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
-                            ) {
-                                Text(text = "1x2", fontSize = dimensions.fontSizeMedium, textAlign = TextAlign.Center)
-                            }
-
-                            androidx.compose.material3.OutlinedButton(
-                                onClick = { viewModel.onEvent(AdvancedOptionsEvent.TestCpcl2x3) },
-                                modifier = Modifier.weight(1f).height(dimensions.buttonHeight),
-                                enabled = !state.isLoading && !state.isTestingPrinter && !state.isConfiguringPrinter,
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
-                            ) {
-                                Text(text = "2x3", fontSize = dimensions.fontSizeMedium, textAlign = TextAlign.Center)
-                            }
-
-                            androidx.compose.material3.OutlinedButton(
-                                onClick = { viewModel.onEvent(AdvancedOptionsEvent.TestCpcl7x10) },
-                                modifier = Modifier.weight(1f).height(dimensions.buttonHeight),
-                                enabled = !state.isLoading && !state.isTestingPrinter && !state.isConfiguringPrinter,
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
-                            ) {
-                                Text(text = "7x10", fontSize = dimensions.fontSizeMedium, textAlign = TextAlign.Center)
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
                     // Test Printer Button
