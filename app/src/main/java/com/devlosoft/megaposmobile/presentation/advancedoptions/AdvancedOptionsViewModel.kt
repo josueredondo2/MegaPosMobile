@@ -73,6 +73,12 @@ class AdvancedOptionsViewModel @Inject constructor(
             is AdvancedOptionsEvent.OnPermissionsResult -> {
                 onPermissionsResult(event.granted)
             }
+            is AdvancedOptionsEvent.ConfigureHabladores -> {
+                configurePrinter(isHabladores = true)
+            }
+            is AdvancedOptionsEvent.ConfigureMegaPos -> {
+                configurePrinter(isHabladores = false)
+            }
             is AdvancedOptionsEvent.TestPrinter -> {
                 testPrinter()
             }
@@ -161,6 +167,95 @@ class AdvancedOptionsViewModel @Inject constructor(
         } else {
             _state.update {
                 it.copy(error = "Permisos de Bluetooth denegados")
+            }
+        }
+    }
+
+    private fun configurePrinter(isHabladores: Boolean) {
+        viewModelScope.launch {
+            _state.update { it.copy(isConfiguringPrinter = true, error = null) }
+
+            try {
+                if (_state.value.usePrinterIp) {
+                    if (_state.value.printerIp.isBlank()) {
+                        _state.update {
+                            it.copy(
+                                error = "Debe configurar la IP de la impresora primero",
+                                isConfiguringPrinter = false
+                            )
+                        }
+                        return@launch
+                    }
+                } else {
+                    if (_state.value.selectedBluetoothDevice == null) {
+                        _state.update {
+                            it.copy(
+                                error = "Debe seleccionar una impresora Bluetooth primero",
+                                isConfiguringPrinter = false
+                            )
+                        }
+                        return@launch
+                    }
+                }
+
+                val commands = if (isHabladores) {
+                    buildString {
+                        appendLine("! U1 setvar \"device.languages\" \"cpcl\"")
+                        appendLine("! U1 setvar \"device.pnp_option\" \"cpcl\"")
+                        appendLine("! U1 setvar \"media.type\" \"label\"")
+                        appendLine("! U1 setvar \"media.sense_mode\" \"bar\"")
+                        appendLine("! U1 setvar \"media.printmode\" \"tear off\"")
+                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"calibrate\"")
+                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"calibrate\"")
+                        appendLine("! U1 setvar \"device.reset\" \"\"")
+                    }
+                } else {
+                    buildString {
+                        appendLine("! U1 setvar \"device.languages\" \"zpl\"")
+                        appendLine("! U1 setvar \"device.pnp_option\" \"zpl\"")
+                        appendLine("! U1 setvar \"media.type\" \"journal\"")
+                        appendLine("! U1 setvar \"media.printmode\" \"tear off\"")
+                        appendLine("! U1 setvar \"ezpl.power_up_action\" \"no motion\"")
+                        appendLine("! U1 setvar \"ezpl.head_close_action\" \"no motion\"")
+                        appendLine("! U1 setvar \"device.reset\" \"\"")
+                    }
+                }
+
+                val configName = if (isHabladores) "Habladores (CPCL)" else "MegaPos (ZPL)"
+
+                val result = printerManager.sendRawCommandWithConfig(
+                    command = commands,
+                    printerIp = _state.value.printerIp,
+                    bluetoothAddress = _state.value.selectedBluetoothDevice?.address ?: "",
+                    usePrinterIp = _state.value.usePrinterIp
+                )
+
+                result.fold(
+                    onSuccess = {
+                        _state.update {
+                            it.copy(
+                                error = "Impresora configurada para $configName. Se reiniciará.",
+                                isConfiguringPrinter = false,
+                                printerLanguage = if (isHabladores) "cpcl" else "zpl"
+                            )
+                        }
+                    },
+                    onFailure = { exception ->
+                        _state.update {
+                            it.copy(
+                                error = "Error al configurar: ${exception.message}",
+                                isConfiguringPrinter = false
+                            )
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        error = "Error inesperado: ${e.message}",
+                        isConfiguringPrinter = false
+                    )
+                }
             }
         }
     }

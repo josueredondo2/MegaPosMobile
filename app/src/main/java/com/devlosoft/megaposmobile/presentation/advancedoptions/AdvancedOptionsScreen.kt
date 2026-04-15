@@ -420,6 +420,70 @@ fun AdvancedOptionsScreen(
                         )
                     }
 
+                    // Zebra ZQ511 Configuration Buttons
+                    if (state.printerModel == PrinterModel.ZEBRA_ZQ511) {
+                        Spacer(modifier = Modifier.height(dimensions.spacerMedium))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { viewModel.onEvent(AdvancedOptionsEvent.ConfigureHabladores) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(dimensions.buttonHeight),
+                                enabled = !state.isLoading && !state.isTestingPrinter && !state.isConfiguringPrinter,
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MegaSuperRed
+                                )
+                            ) {
+                                if (state.isConfiguringPrinter) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(dimensions.iconSizeMedium),
+                                        color = MegaSuperRed,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Configurar Habladores",
+                                        fontSize = dimensions.fontSizeMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { viewModel.onEvent(AdvancedOptionsEvent.ConfigureMegaPos) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(dimensions.buttonHeight),
+                                enabled = !state.isLoading && !state.isTestingPrinter && !state.isConfiguringPrinter,
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MegaSuperRed
+                                )
+                            ) {
+                                if (state.isConfiguringPrinter) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(dimensions.iconSizeMedium),
+                                        color = MegaSuperRed,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Configurar MegaPos",
+                                        fontSize = dimensions.fontSizeMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(dimensions.spacerLarge))
 
                     // Test Printer Button

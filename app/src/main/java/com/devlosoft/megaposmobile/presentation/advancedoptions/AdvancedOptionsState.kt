@@ -33,7 +33,11 @@ data class AdvancedOptionsState(
     // Printer mode (true = IP, false = Bluetooth)
     val usePrinterIp: Boolean = true,
 
+    // Printer language mode (tracks last configuration applied)
+    val printerLanguage: String = "zpl",
+
     // UI states
+    val isConfiguringPrinter: Boolean = false,
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
     val isTestingPrinter: Boolean = false,

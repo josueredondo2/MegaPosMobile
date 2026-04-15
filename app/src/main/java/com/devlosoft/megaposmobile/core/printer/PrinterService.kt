@@ -19,4 +19,20 @@ interface PrinterService {
      * @return Result with success or error message
      */
     suspend fun printText(text: String, printerModel: PrinterModel): Result<String>
+
+    /**
+     * Sends a raw command string directly to the printer (no driver formatting)
+     * Used for SGD commands like ! U1 setvar
+     * @param command Raw command string to send
+     * @return Result with success or error message
+     */
+    suspend fun sendRawCommand(command: String): Result<String>
+
+    /**
+     * Sends a command and reads the printer's response
+     * Used for SGD getvar queries like ! U1 getvar "device.languages"
+     * @param command The query command to send
+     * @return Result with the printer's response string
+     */
+    suspend fun queryPrinter(command: String): Result<String>
 }

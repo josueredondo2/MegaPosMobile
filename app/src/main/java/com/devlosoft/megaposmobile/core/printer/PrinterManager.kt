@@ -100,6 +100,46 @@ class PrinterManager @Inject constructor(
     }
 
     /**
+     * Queries the printer and returns its response
+     */
+    suspend fun queryPrinterWithConfig(
+        command: String,
+        printerIp: String,
+        bluetoothAddress: String,
+        usePrinterIp: Boolean
+    ): Result<String> {
+        Log.d(TAG, "Querying printer with custom config...")
+
+        val printerService = createPrinterService(
+            usePrinterIp = usePrinterIp,
+            printerIp = printerIp,
+            bluetoothAddress = bluetoothAddress
+        )
+
+        return printerService.queryPrinter(command)
+    }
+
+    /**
+     * Sends raw commands to the printer (SGD commands for configuration)
+     */
+    suspend fun sendRawCommandWithConfig(
+        command: String,
+        printerIp: String,
+        bluetoothAddress: String,
+        usePrinterIp: Boolean
+    ): Result<String> {
+        Log.d(TAG, "Sending raw command with custom config...")
+
+        val printerService = createPrinterService(
+            usePrinterIp = usePrinterIp,
+            printerIp = printerIp,
+            bluetoothAddress = bluetoothAddress
+        )
+
+        return printerService.sendRawCommand(command)
+    }
+
+    /**
      * Creates the appropriate printer service based on configuration
      */
     private fun createPrinterService(
